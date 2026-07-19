@@ -92,9 +92,30 @@ Sluice/
 - ✅ Local demo: `./dev.sh` (anvil + `script/DeployLocal.s.sol` seed + dev server);
   verified end-to-end headlessly — screenshots in `docs/screenshots/`.
 
-### Phase 3 — Advanced (hackathon stretch)
-- CCTP cross-chain yield routing vault.
-- Auto-trigger rule engine (withdraw hooks → Swap Kit).
+### Phase 3 — Cross-Chain Infrastructure — ✅ DONE (chain-abstracted payroll)
+- ✅ `contracts/crosschain/MockCCTPMessenger.sol` — CCTP v2-shaped burn/mint +
+  hook messenger (domains: Arc 26, Base 6); `web/scripts/relayer.mjs` plays
+  Circle's attestation service across two anvils (8545 Arc / 8546 Base 31338).
+- ✅ `SluiceGate.sol` — hooked CCTP mints dispatch into Sluice: **fund a stream
+  from any chain** (FUND_STREAM hook → `createStreamFor`, employer keeps cancel
+  rights), **buy a listed stream from any chain** (BUY_STREAM → `buyStreamFor`,
+  refunds if delisted/underpaid), and `withdrawToChain` exits net salary via
+  CCTP burn (tax stays on Arc).
+- ✅ `SluiceTreasury.sol` + adapters — idle escrow above a 40% liquidity buffer
+  is swept (`Sluice.sweepIdle`), `rebalance()` splits it 50/50 across an Arc
+  money market (4.2%) and a Base `RemoteYieldVault` (8.6%, reached via hooked
+  CCTP burn); withdrawals auto-recall liquidity (`_push` → `treasury.recall`);
+  `requestRemoteReturn` + relayer bring the remote position home with yield.
+- ✅ UI: Treasury page (NAV, per-venue positions with chain badges, sweep /
+  rebalance / recall, on-chain activity feed), fund-from select on Create,
+  payout-destination select on Withdraw, "Buy from Base via CCTP" on listings.
+- ✅ 10 cross-chain forge tests (26 total); every flow driven in the browser.
+- Twin-chain demo: `./dev.sh` boots both anvils + deploys + relayer + web.
+  Address JSONs are written to `web/src/lib/deployments.<chainId>.json`.
+
+### Phase 4 — Testnet stretch
+- Swap the mock messenger for `@circle-fin/bridge-kit` + real CCTP v2 domains
+  (interfaces intentionally mirror it); Gateway unified balances on dashboard.
 
 ## Design Decisions
 

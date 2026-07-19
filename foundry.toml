@@ -5,6 +5,7 @@ libs = ["lib"]
 optimizer = true
 optimizer_runs = 200
 via_ir = true
+fs_permissions = [{ access = "read-write", path = "./web/src/lib" }]
 
 [rpc_endpoints]
 arc_testnet = "https://rpc.testnet.arc.network"

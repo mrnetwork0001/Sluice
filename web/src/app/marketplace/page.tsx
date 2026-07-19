@@ -16,6 +16,13 @@ import {
   TxBanner,
   inputClass,
 } from "@/components/ui";
+import {
+  ARC_DOMAIN,
+  BASE_SIDE,
+  GATE_ADDRESS,
+  encodeBuyStreamHook,
+  messengerAbi,
+} from "@/lib/crosschain";
 import Link from "next/link";
 
 export default function MarketplacePage() {
@@ -223,7 +230,7 @@ function Listing({ stream }: { stream: Stream }) {
         <span className="font-mono text-emerald-300">{formatUsdc(upside)} USDC</span> before tax
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 space-y-2">
         {isSeller ? (
           <Button
             variant="ghost"
@@ -239,20 +246,49 @@ function Listing({ stream }: { stream: Stream }) {
             Delist my stream
           </Button>
         ) : (
-          <Button
-            className="w-full"
-            disabled={busy || !address}
-            onClick={() =>
-              void send({
-                functionName: "buyStream",
-                args: [stream.id],
-                usdcApproval: stream.salePrice,
-                label: `Bought stream #${stream.id.toString()} for ${formatUsdc(stream.salePrice)} USDC`,
-              })
-            }
-          >
-            Buy for {formatUsdc(stream.salePrice)} USDC
-          </Button>
+          <>
+            <Button
+              className="w-full"
+              disabled={busy || !address}
+              onClick={() =>
+                void send({
+                  functionName: "buyStream",
+                  args: [stream.id],
+                  usdcApproval: stream.salePrice,
+                  label: `Bought stream #${stream.id.toString()} for ${formatUsdc(stream.salePrice)} USDC`,
+                })
+              }
+            >
+              Buy for {formatUsdc(stream.salePrice)} USDC
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              disabled={busy || !address}
+              onClick={() =>
+                address &&
+                void send({
+                  to: { address: BASE_SIDE.messenger, abi: messengerAbi },
+                  chainId: BASE_SIDE.chainId,
+                  functionName: "depositForBurnWithHook",
+                  args: [
+                    stream.salePrice,
+                    ARC_DOMAIN,
+                    GATE_ADDRESS,
+                    encodeBuyStreamHook(address, stream.id),
+                  ],
+                  approval: {
+                    token: BASE_SIDE.usdc,
+                    spender: BASE_SIDE.messenger,
+                    amount: stream.salePrice,
+                  },
+                  label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base — the gate settles the purchase on Arc via CCTP hook`,
+                })
+              }
+            >
+              Buy from Base via CCTP ⚡
+            </Button>
+          </>
         )}
       </div>
       <TxBanner status={status} onDismiss={reset} />

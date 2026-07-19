@@ -7,8 +7,11 @@ import {
   usePublicClient,
   useReadContract,
   useReadContracts,
+  useSwitchChain,
   useWriteContract,
 } from "wagmi";
+import { getPublicClient } from "wagmi/actions";
+import { wagmiConfig } from "./wagmi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { maxUint256, parseAbiItem, type BaseError } from "viem";
 import { SLUICE_ADDRESSES, parseStream, sluiceAbi, type Stream } from "./sluice";
@@ -133,65 +136,97 @@ interface SendOptions {
   args: readonly unknown[];
   /** When set, ensures the Sluice contract has a USDC allowance ≥ this before sending. */
   usdcApproval?: bigint;
+  /** Target contract override — defaults to the Sluice contract. */
+  to?: { address: `0x${string}`; abi: readonly unknown[] };
+  /** Run the tx on this chain, switching the wallet there (and back) as needed. */
+  chainId?: number;
+  /** Generic ERC-20 approval on the tx chain (replaces usdcApproval for overrides). */
+  approval?: { token: `0x${string}`; spender: `0x${string}`; amount: bigint };
   /** Success banner label, e.g. "Withdrew 120 USDC". */
   label: string;
   onSuccess?: () => void | Promise<void>;
 }
 
-/** Shared write pipeline: optional USDC approve → tx → wait → refresh reads. */
+/** Shared write pipeline: optional approve → (chain switch) → tx → wait → refresh. */
 export function useSluiceWrite() {
   const sluice = useSluiceAddress();
   const usdc = useUsdcAddress();
+  const currentChainId = useChainId();
   const { address: account } = useAccount();
   const client = usePublicClient();
   const { writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<TxStatus>({ phase: "idle" });
 
   const send = useCallback(
-    async ({ functionName, args, usdcApproval, label, onSuccess }: SendOptions) => {
-      if (!sluice || !client || !account) {
+    async ({ functionName, args, usdcApproval, to, chainId, approval, label, onSuccess }: SendOptions) => {
+      const target = to ?? (sluice ? { address: sluice, abi: sluiceAbi as readonly unknown[] } : undefined);
+      if (!target || !client || !account) {
         setStatus({ phase: "error", message: "Connect a wallet first." });
         return;
       }
+      const homeChainId = currentChainId;
+      const txChainId = chainId ?? currentChainId;
+      const txClient = txChainId === currentChainId ? client : getPublicClient(wagmiConfig, { chainId: txChainId as never });
+      if (!txClient) {
+        setStatus({ phase: "error", message: `No RPC configured for chain ${txChainId}` });
+        return;
+      }
       try {
-        if (usdcApproval !== undefined && usdc) {
-          const allowance = (await client.readContract({
-            address: usdc,
+        if (txChainId !== homeChainId) {
+          await switchChainAsync({ chainId: txChainId });
+        }
+        const approvalSpec =
+          approval ??
+          (usdcApproval !== undefined && usdc
+            ? { token: usdc, spender: target.address, amount: usdcApproval }
+            : undefined);
+        if (approvalSpec) {
+          const allowance = (await txClient.readContract({
+            address: approvalSpec.token,
             abi: erc20Abi,
             functionName: "allowance",
-            args: [account, sluice],
+            args: [account, approvalSpec.spender],
           })) as bigint;
-          if (allowance < usdcApproval) {
+          if (allowance < approvalSpec.amount) {
             setStatus({ phase: "approving" });
             const approveHash = await writeContractAsync({
-              address: usdc,
+              address: approvalSpec.token,
               abi: erc20Abi,
               functionName: "approve",
-              args: [sluice, maxUint256],
+              args: [approvalSpec.spender, maxUint256],
+              chainId: txChainId as never,
             });
-            await client.waitForTransactionReceipt({ hash: approveHash });
+            await txClient.waitForTransactionReceipt({ hash: approveHash });
           }
         }
         setStatus({ phase: "confirming" });
         const hash = await writeContractAsync({
-          address: sluice,
-          abi: sluiceAbi,
+          address: target.address,
+          abi: target.abi as never,
           functionName: functionName as never,
           args: args as never,
+          chainId: txChainId as never,
         });
-        const receipt = await client.waitForTransactionReceipt({ hash });
+        const receipt = await txClient.waitForTransactionReceipt({ hash });
         if (receipt.status !== "success") throw new Error("Transaction reverted");
+        if (txChainId !== homeChainId) {
+          await switchChainAsync({ chainId: homeChainId }).catch(() => {});
+        }
         await queryClient.invalidateQueries();
         setStatus({ phase: "success", hash, label });
         await onSuccess?.();
       } catch (error) {
+        if (txChainId !== homeChainId) {
+          await switchChainAsync({ chainId: homeChainId }).catch(() => {});
+        }
         const message =
           (error as BaseError)?.shortMessage ?? (error as Error)?.message ?? "Transaction failed";
         setStatus({ phase: "error", message });
       }
     },
-    [sluice, usdc, account, client, writeContractAsync, queryClient],
+    [sluice, usdc, account, client, currentChainId, writeContractAsync, switchChainAsync, queryClient],
   );
 
   const reset = useCallback(() => setStatus({ phase: "idle" }), []);

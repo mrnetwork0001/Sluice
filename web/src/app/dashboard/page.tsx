@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { useStreamIds, useSluiceAddress, useUsdcBalance } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { formatUsdc } from "@/lib/format";
@@ -21,16 +21,30 @@ export default function DashboardPage() {
     query: { enabled: Boolean(sluice), refetchInterval: 8_000 },
   });
 
+  // Ownership can change hands via marketplace and cross-chain buys, so group by
+  // the SFT's current owner rather than the recipient from the creation event.
+  const { data: owners } = useReadContracts({
+    contracts: (streamRefs ?? []).map((ref) => ({
+      address: sluice!,
+      abi: sluiceAbi,
+      functionName: "ownerOf" as const,
+      args: [ref.id] as const,
+    })),
+    allowFailure: true,
+    query: { enabled: Boolean(sluice && streamRefs?.length), refetchInterval: 5_000 },
+  });
+
   const { incoming, outgoing } = useMemo(() => {
     const refs = streamRefs ?? [];
     const mine = address?.toLowerCase();
     return {
-      // recipient may have changed via marketplace sales — StreamCard corrects per-card,
-      // but the original recipient/employer split is right for grouping the overview.
-      incoming: refs.filter((ref) => ref.recipient.toLowerCase() === mine),
+      incoming: refs.filter((ref, index) => {
+        const owner = owners?.[index]?.status === "success" ? (owners[index].result as string) : ref.recipient;
+        return owner.toLowerCase() === mine;
+      }),
       outgoing: refs.filter((ref) => ref.employer.toLowerCase() === mine),
     };
-  }, [streamRefs, address]);
+  }, [streamRefs, owners, address]);
 
   if (!isConnected) {
     return (

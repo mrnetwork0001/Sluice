@@ -6,7 +6,13 @@ import {ERC3525} from "./erc3525/ERC3525.sol";
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+}
+
+interface ISluiceTreasury {
+    function notifyDeposit(uint256 amount) external;
+    function recall(uint256 amount) external;
 }
 
 /// @title Sluice — USDC payroll streaming on Arc L1
@@ -48,6 +54,15 @@ contract Sluice is ERC3525 {
     uint256 public totalPoolShares;
     mapping(address => uint256) public poolShares;
 
+    // Cross-chain gate (CCTP entry/exit) and idle-escrow yield treasury.
+    address public gate;
+    address public treasury;
+    /// @dev Sum of remaining stream value across all live streams. Together with
+    ///      poolBalance this is the contract's USDC obligation, bounding sweeps.
+    uint256 public escrowLiability;
+    /// @notice Share of obligations always kept liquid here for withdrawals (40%).
+    uint256 public constant BUFFER_BPS = 4_000;
+
     event StreamCreated(
         uint256 indexed streamId,
         address indexed employer,
@@ -66,10 +81,24 @@ contract Sluice is ERC3525 {
     event InsuranceStaked(address indexed staker, uint256 amount, uint256 shares);
     event InsuranceUnstaked(address indexed staker, uint256 amount, uint256 shares);
     event DefaultCoverageClaimed(uint256 indexed streamId, address indexed to, uint256 amount);
+    event EscrowSwept(uint256 amount);
+    event EscrowRecalled(uint256 amount);
 
     /// @param usdc_ USDC token address; pass address(0) to use the Arc testnet address.
     constructor(address usdc_) ERC3525("Sluice Salary Stream", "SLUICE", 6) {
         usdc = IERC20(usdc_ == address(0) ? ARC_USDC : usdc_);
+    }
+
+    /// @notice One-time wiring of the cross-chain gate (deploy-time).
+    function setGate(address gate_) external {
+        require(gate == address(0) && gate_ != address(0), "Sluice: gate set");
+        gate = gate_;
+    }
+
+    /// @notice One-time wiring of the yield treasury (deploy-time).
+    function setTreasury(address treasury_) external {
+        require(treasury == address(0) && treasury_ != address(0), "Sluice: treasury set");
+        treasury = treasury_;
     }
 
     // ------------------------------------------------------------- streaming
@@ -82,16 +111,44 @@ contract Sluice is ERC3525 {
         external
         returns (uint256 streamId)
     {
+        return _createStream(msg.sender, msg.sender, recipient, amount, durationSeconds, taxBps, taxVault);
+    }
+
+    /// @notice Gate-only variant for cross-chain funding: USDC is pulled from the
+    ///         gate (just minted by CCTP) while `employer` keeps cancel rights.
+    function createStreamFor(
+        address employer,
+        address recipient,
+        uint256 amount,
+        uint256 durationSeconds,
+        uint256 taxBps,
+        address taxVault
+    ) external returns (uint256 streamId) {
+        require(msg.sender == gate, "Sluice: only gate");
+        return _createStream(employer, msg.sender, recipient, amount, durationSeconds, taxBps, taxVault);
+    }
+
+    function _createStream(
+        address employer,
+        address funder,
+        address recipient,
+        uint256 amount,
+        uint256 durationSeconds,
+        uint256 taxBps,
+        address taxVault
+    ) internal returns (uint256 streamId) {
+        require(employer != address(0), "Sluice: employer zero");
         require(recipient != address(0), "Sluice: recipient zero");
         require(amount > 0, "Sluice: amount zero");
         require(durationSeconds > 0 && durationSeconds <= type(uint64).max, "Sluice: bad duration");
         require(taxBps <= BPS, "Sluice: tax > 100%");
         require(taxBps == 0 || taxVault != address(0), "Sluice: tax vault zero");
 
-        _pull(msg.sender, amount);
-        streamId = _createToken(recipient, uint256(uint160(msg.sender)), amount);
+        _pull(funder, amount);
+        escrowLiability += amount;
+        streamId = _createToken(recipient, uint256(uint160(employer)), amount);
         streams[streamId] = Stream({
-            employer: msg.sender,
+            employer: employer,
             start: uint64(block.timestamp),
             duration: uint64(durationSeconds),
             deposit: amount,
@@ -105,7 +162,7 @@ contract Sluice is ERC3525 {
             salePrice: 0,
             shortfall: 0
         });
-        emit StreamCreated(streamId, msg.sender, recipient, amount, durationSeconds, taxBps, taxVault);
+        emit StreamCreated(streamId, employer, recipient, amount, durationSeconds, taxBps, taxVault);
     }
 
     /// @notice USDC vested so far (capped at the scheduled deposit).
@@ -136,17 +193,32 @@ contract Sluice is ERC3525 {
     /// @notice Withdraw vested USDC; `taxBps` is split to the tax vault automatically.
     function withdrawFromStream(uint256 streamId, uint256 amount) external {
         require(_isAuthorized(msg.sender, streamId), "Sluice: not authorized");
+        _executeWithdraw(streamId, amount, address(0));
+    }
+
+    /// @notice Gate-only: withdraw on behalf of `owner`, paying the net amount to the
+    ///         gate so it can burn the funds to the owner's chosen destination chain.
+    function withdrawFromStreamFor(address owner, uint256 streamId, uint256 amount) external returns (uint256 net) {
+        require(msg.sender == gate, "Sluice: only gate");
+        require(owner == ownerOf(streamId), "Sluice: not owner");
+        return _executeWithdraw(streamId, amount, gate);
+    }
+
+    /// @dev Shared withdrawal path; `sink` == address(0) pays the stream owner.
+    function _executeWithdraw(uint256 streamId, uint256 amount, address sink) internal returns (uint256 net) {
         Stream storage s = streams[streamId];
         require(!s.canceled, "Sluice: canceled");
         require(amount > 0 && amount <= availableToWithdraw(streamId), "Sluice: exceeds available");
 
         address owner = ownerOf(streamId);
         s.withdrawn += amount;
+        escrowLiability -= amount;
         _burnValue(streamId, amount);
 
         uint256 tax = (amount * s.taxBps) / BPS;
+        net = amount - tax;
         if (tax > 0) _push(s.taxVault, tax);
-        _push(owner, amount - tax);
+        _push(sink == address(0) ? owner : sink, net);
         emit StreamWithdrawal(streamId, owner, amount, tax);
     }
 
@@ -167,6 +239,7 @@ contract Sluice is ERC3525 {
         s.canceled = true;
         s.salePrice = 0;
         s.withdrawn += owed;
+        escrowLiability -= owed + refund;
         if (s.insured) s.shortfall = refund;
         _burnValue(streamId, balanceOf(streamId));
 
@@ -193,16 +266,32 @@ contract Sluice is ERC3525 {
 
     /// @notice Buy a listed stream: pay the seller the discounted price, receive the SFT.
     function buyStream(uint256 streamId) external {
+        _executeBuy(msg.sender, msg.sender, streamId);
+    }
+
+    /// @notice Gate-only: settle a purchase initiated on another chain — the gate pays
+    ///         with CCTP-minted USDC and the SFT lands in the remote buyer's wallet.
+    function buyStreamFor(address buyer, uint256 streamId) external {
+        require(msg.sender == gate, "Sluice: only gate");
+        _executeBuy(buyer, msg.sender, streamId);
+    }
+
+    /// @notice Current asking price of a listing (0 = not listed).
+    function salePriceOf(uint256 streamId) external view returns (uint256) {
+        return streams[streamId].salePrice;
+    }
+
+    function _executeBuy(address buyer, address payer, uint256 streamId) internal {
         Stream storage s = streams[streamId];
         uint256 price = s.salePrice;
         require(price > 0, "Sluice: not listed");
         address seller = ownerOf(streamId);
-        require(msg.sender != seller, "Sluice: self purchase");
+        require(buyer != seller, "Sluice: self purchase");
 
         s.salePrice = 0;
-        require(usdc.transferFrom(msg.sender, seller, price), "Sluice: payment failed");
-        _transferToken(seller, msg.sender, streamId);
-        emit StreamSold(streamId, seller, msg.sender, price);
+        require(usdc.transferFrom(payer, seller, price), "Sluice: payment failed");
+        _transferToken(seller, buyer, streamId);
+        emit StreamSold(streamId, seller, buyer, price);
     }
 
     // ---------------------------------------------------------- salary advance
@@ -218,6 +307,7 @@ contract Sluice is ERC3525 {
         require(s.advanced + advanceAmount <= maxAdvance, "Sluice: advance > 50%");
 
         s.advanced += advanceAmount;
+        escrowLiability -= advanceAmount;
         _burnValue(streamId, advanceAmount);
         _push(msg.sender, advanceAmount);
         emit SalaryAdvance(streamId, msg.sender, advanceAmount);
@@ -331,13 +421,46 @@ contract Sluice is ERC3525 {
         s.ratePerSecond -= childRate;
     }
 
+    // ------------------------------------------------------- treasury routing
+
+    /// @notice USDC obligations backing streams and the insurance pool.
+    function totalLiability() public view returns (uint256) {
+        return escrowLiability + poolBalance;
+    }
+
+    /// @notice Escrow that can safely leave for the yield treasury while keeping a
+    ///         BUFFER_BPS liquidity buffer for withdrawals.
+    function sweepableAmount() public view returns (uint256) {
+        uint256 buffer = (totalLiability() * BUFFER_BPS) / BPS;
+        uint256 held = usdc.balanceOf(address(this));
+        return held > buffer ? held - buffer : 0;
+    }
+
+    /// @notice Push idle escrow into the treasury to earn yield. Callable by anyone;
+    ///         the liquidity buffer bound makes it safe.
+    function sweepIdle() external returns (uint256 amount) {
+        require(treasury != address(0), "Sluice: no treasury");
+        amount = sweepableAmount();
+        require(amount > 0, "Sluice: nothing to sweep");
+        require(usdc.transfer(treasury, amount), "Sluice: transfer failed");
+        ISluiceTreasury(treasury).notifyDeposit(amount);
+        emit EscrowSwept(amount);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     function _pull(address from, uint256 amount) internal {
         require(usdc.transferFrom(from, address(this), amount), "Sluice: transferFrom failed");
     }
 
+    /// @dev Pays out USDC, automatically recalling liquidity from the treasury when
+    ///      the local buffer cannot cover the payment.
     function _push(address to, uint256 amount) internal {
+        uint256 held = usdc.balanceOf(address(this));
+        if (held < amount && treasury != address(0)) {
+            ISluiceTreasury(treasury).recall(amount - held);
+            emit EscrowRecalled(amount - held);
+        }
         require(usdc.transfer(to, amount), "Sluice: transfer failed");
     }
 }

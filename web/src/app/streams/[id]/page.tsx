@@ -6,6 +6,8 @@ import { useAccount } from "wagmi";
 import { useNow, useSluiceWrite, useStream } from "@/lib/hooks";
 import { liveAvailable, liveVested, maxAdvance, type Stream } from "@/lib/sluice";
 import { loadRules, runAutoTriggers, type TriggerLogEntry } from "@/lib/automation";
+import { BASE_DOMAIN, GATE_ADDRESS } from "@/lib/crosschain";
+import { gateAbi } from "@/lib/gateAbi";
 import {
   formatBps,
   formatDuration,
@@ -152,6 +154,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   const { send, status, reset, busy } = useSluiceWrite();
   const { address } = useAccount();
   const [amount, setAmount] = useState("");
+  const [dest, setDest] = useState<"arc" | "base">("arc");
   const [triggers, setTriggers] = useState<TriggerLogEntry[]>([]);
 
   const parsed = useMemo(() => {
@@ -163,6 +166,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   }, [amount]);
   const tax = parsed !== undefined ? (parsed * BigInt(stream.taxBps)) / 10_000n : undefined;
   const activeRules = address ? loadRules(address).filter((rule) => rule.enabled) : [];
+  const crossChain = dest === "base";
 
   return (
     <Card>
@@ -178,11 +182,24 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
           Max
         </Button>
       </div>
+      <div className="mt-2">
+        <select
+          className={inputClass}
+          value={dest}
+          onChange={(event) => setDest(event.target.value as "arc" | "base")}
+        >
+          <option value="arc">Pay out here on Arc (local)</option>
+          <option value="base">Pay out on Base (local) — via CCTP</option>
+        </select>
+      </div>
       {parsed !== undefined && tax !== undefined && parsed > 0n ? (
         <div className="mt-2 text-xs text-zinc-500">
-          You receive <span className="text-emerald-300">{formatUsdc(parsed - tax)}</span> USDC ·
-          tax vault gets <span className="text-zinc-300">{formatUsdc(tax)}</span>
-          {activeRules.length > 0 ? (
+          You receive <span className="text-emerald-300">{formatUsdc(parsed - tax)}</span> USDC
+          {crossChain ? " on Base" : ""} · tax vault gets{" "}
+          <span className="text-zinc-300">{formatUsdc(tax)}</span> on Arc
+          {crossChain ? (
+            <> · burned via CCTP, minted by the relayer</>
+          ) : activeRules.length > 0 ? (
             <> · then {activeRules.length} auto-trigger{activeRules.length > 1 ? "s" : ""} run</>
           ) : null}
         </div>
@@ -193,23 +210,33 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
           onClick={() => {
             if (parsed === undefined || !address) return;
             const net = parsed - (parsed * BigInt(stream.taxBps)) / 10_000n;
-            void send({
-              functionName: "withdrawFromStream",
-              args: [stream.id, parsed],
-              label: `Withdrew ${formatUsdc(parsed)} USDC from stream #${stream.id.toString()}`,
-              onSuccess: async () => {
-                const entries = await runAutoTriggers({
-                  account: address,
-                  streamId: stream.id,
-                  netAmount: net,
-                });
-                setTriggers(entries);
-                setAmount("");
-              },
-            });
+            if (crossChain) {
+              void send({
+                to: { address: GATE_ADDRESS, abi: gateAbi },
+                functionName: "withdrawToChain",
+                args: [stream.id, parsed, BASE_DOMAIN, address],
+                label: `Withdrew ${formatUsdc(parsed)} USDC — ${formatUsdc(net)} net exiting to Base via CCTP`,
+                onSuccess: () => setAmount(""),
+              });
+            } else {
+              void send({
+                functionName: "withdrawFromStream",
+                args: [stream.id, parsed],
+                label: `Withdrew ${formatUsdc(parsed)} USDC from stream #${stream.id.toString()}`,
+                onSuccess: async () => {
+                  const entries = await runAutoTriggers({
+                    account: address,
+                    streamId: stream.id,
+                    netAmount: net,
+                  });
+                  setTriggers(entries);
+                  setAmount("");
+                },
+              });
+            }
           }}
         >
-          Withdraw
+          {crossChain ? "Withdraw to Base" : "Withdraw"}
         </Button>
       </div>
       <TxBanner status={status} onDismiss={reset} />

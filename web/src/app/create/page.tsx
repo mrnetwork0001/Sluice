@@ -4,6 +4,13 @@ import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { useSluiceWrite, useUsdcBalance } from "@/lib/hooks";
 import { formatUsdc, formatUsdcExact, parseUsdc } from "@/lib/format";
+import {
+  ARC_DOMAIN,
+  BASE_SIDE,
+  GATE_ADDRESS,
+  encodeFundStreamHook,
+  messengerAbi,
+} from "@/lib/crosschain";
 import { Button, Card, CardTitle, Field, PageHeader, TxBanner, inputClass } from "@/components/ui";
 
 const durationUnits = [
@@ -24,6 +31,7 @@ export default function CreateStreamPage() {
   const [durationUnit, setDurationUnit] = useState(86_400);
   const [taxPct, setTaxPct] = useState("8");
   const [taxVault, setTaxVault] = useState("");
+  const [fundFrom, setFundFrom] = useState<"arc" | "base">("arc");
 
   const parsedAmount = useMemo(() => {
     try {
@@ -126,6 +134,23 @@ export default function CreateStreamPage() {
               />
             </Field>
           </div>
+          <Field
+            label="Fund from"
+            hint={
+              fundFrom === "base"
+                ? "Burns USDC on Base via CCTP; the gate hook opens the stream on Arc when the relayer delivers the mint."
+                : undefined
+            }
+          >
+            <select
+              className={inputClass}
+              value={fundFrom}
+              onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
+            >
+              <option value="arc">This wallet on Arc (local)</option>
+              <option value="base">Treasury on Base (local) — via CCTP</option>
+            </select>
+          </Field>
         </div>
 
         {ratePerSecond !== undefined ? (
@@ -149,25 +174,56 @@ export default function CreateStreamPage() {
         <div className="mt-5">
           <Button
             disabled={!canSubmit}
-            onClick={() =>
-              parsedAmount !== undefined &&
-              void send({
-                functionName: "createStream",
-                args: [
-                  recipient as `0x${string}`,
-                  parsedAmount,
-                  BigInt(durationSeconds),
-                  BigInt(taxBps),
-                  (taxBps === 0
-                    ? "0x0000000000000000000000000000000000000000"
-                    : taxVault) as `0x${string}`,
-                ],
-                usdcApproval: parsedAmount,
-                label: `Stream of ${formatUsdc(parsedAmount)} USDC created`,
-              })
-            }
+            onClick={() => {
+              if (parsedAmount === undefined || !address) return;
+              const vault = (taxBps === 0
+                ? "0x0000000000000000000000000000000000000000"
+                : taxVault) as `0x${string}`;
+              if (fundFrom === "base") {
+                void send({
+                  to: { address: BASE_SIDE.messenger, abi: messengerAbi },
+                  chainId: BASE_SIDE.chainId,
+                  functionName: "depositForBurnWithHook",
+                  args: [
+                    parsedAmount,
+                    ARC_DOMAIN,
+                    GATE_ADDRESS,
+                    encodeFundStreamHook({
+                      employer: address,
+                      recipient: recipient as `0x${string}`,
+                      durationSeconds: BigInt(durationSeconds),
+                      taxBps: BigInt(taxBps),
+                      taxVault: vault,
+                    }),
+                  ],
+                  approval: {
+                    token: BASE_SIDE.usdc,
+                    spender: BASE_SIDE.messenger,
+                    amount: parsedAmount,
+                  },
+                  label: `Burned ${formatUsdc(parsedAmount)} USDC on Base — stream opens on Arc as soon as the relayer delivers`,
+                });
+              } else {
+                void send({
+                  functionName: "createStream",
+                  args: [
+                    recipient as `0x${string}`,
+                    parsedAmount,
+                    BigInt(durationSeconds),
+                    BigInt(taxBps),
+                    vault,
+                  ],
+                  usdcApproval: parsedAmount,
+                  label: `Stream of ${formatUsdc(parsedAmount)} USDC created`,
+                });
+              }
+            }}
           >
-            {busy ? "Creating…" : "Escrow & start streaming"}
+            {busy
+              ? "Working…"
+              : fundFrom === "base"
+                ? "Fund from Base via CCTP"
+                : "Escrow & start streaming"}
           </Button>
         </div>
         <TxBanner status={status} onDismiss={reset} />

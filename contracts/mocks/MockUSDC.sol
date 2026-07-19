@@ -25,6 +25,13 @@ contract MockUSDC {
         mint(msg.sender, 10_000e6);
     }
 
+    /// @notice Open burn — lets the mock CCTP messenger destroy bridged supply.
+    function burn(address from, uint256 amount) external {
+        balanceOf[from] -= amount;
+        totalSupply -= amount;
+        emit Transfer(from, address(0), amount);
+    }
+
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
