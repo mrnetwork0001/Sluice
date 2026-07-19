@@ -1,0 +1,54 @@
+# Claude Code Prompt: Scaffolding and Implementing "Sluice" on Arc
+
+Copy and paste this entire prompt directly to your **Claude Code** agent to begin developing the project:
+
+```markdown
+# TASK: Build "Sluice" on Arc L1 (USDC Gas, Sub-second Finality)
+
+You are an expert Web3 developer. We are building "Sluice", a next-generation corporate payroll and treasury platform for the Programmable Money Hackathon on Arc.
+
+## ⚠️ CRITICAL INSTRUCTION (Do Not Forget)
+First, save the system architecture, features, and milestones of this project by creating a local markdown file named `SLUICE_PROJECT.md` or registering it as a local skill/knowledge item in your environment. Do not proceed to coding until you have saved this context locally so you don't forget the core specifications during the building process.
+
+---
+
+## Project Overview: Sluice
+Sluice allows employers to stream USDC salaries block-by-block. Unstreamed escrow funds dynamically earn yield, tax/compliance splits are handled automatically, and employees can sell their future stream receivables at a discount for instant liquidity.
+
+### 5 Core Features to Implement:
+1. **Semi-Fungible Tokens (SFT / ERC-3525) for streams**: Every stream is minted as an SFT where value represents the remaining streamable USDC balance, allowing streams to be split, merged, or transferred.
+2. **P2P Stream Discounting (Factoring)**: Employees can list their SFT streams for sale at a discount (e.g. sell a $10,000 stream for $9,500 USDC upfront) to Liquidity Providers (LPs).
+3. **Cross-Chain Escrow Auto-Yield Routing**: Integrates Circle's Gateway and CCTP to pool idle payroll deposits across multiple EVM chains (Arbitrum, Base, Ethereum) into a high-yield treasury vault, rebalancing dynamically.
+4. **Self-Insured streams (Credit Default Pools)**: Employees can pay a 0.5% premium into a pool that automatically covers salary streams if an employer defaults.
+5. **Stream-to-DeFi Auto-Triggers**: Employees set up automated routing rules (e.g. auto-swap 20% to EURC using Circle Swap Kit on withdrawal).
+
+---
+
+## Implementation Checklist
+
+### Phase 1: Smart Contracts (Solidity + Foundry)
+1. Initialize a Foundry project in the current directory: `forge init --force`
+2. Create `contracts/Sluice.sol` inheriting from the ERC-3525 Semi-Fungible Token standard.
+3. Implement the following structures and methods:
+   - `createStream(address recipient, uint256 amount, uint256 durationSeconds, uint256 taxBps, address taxVault)`
+   - `withdrawFromStream(uint256 streamId, uint256 amount)` (incorporating the tax split)
+   - `listStreamForSale(uint256 streamId, uint256 salePrice)`
+   - `buyStream(uint256 streamId)` (swapping the owner of the SFT and transferring the discount payment)
+   - `borrowSalaryAdvance(uint256 streamId, uint256 advanceAmount)` (restricted to 50% value)
+   - `stakeInsurancePool(uint256 amount)` & `claimDefaultCoverage(uint256 streamId)`
+4. Set the Arc Testnet USDC address: `0x3600000000000000000000000000000000000000`.
+5. Write unit tests in `test/Sluice.t.sol` to verify:
+   - Block-by-block rate calculations (6 decimals).
+   - ERC-3525 value splits (transferring part of a stream to another address).
+   - Discount marketplace purchase validation.
+
+### Phase 2: Integration of Circle SDKs
+- Scaffold a Next.js / TypeScript web application in the root.
+- Integrate the `@circle-fin/app-kit` (Swap Kit for stablecoin conversions, Unified Balance Kit for cross-chain deposits).
+- Configure the Arc Testnet connection details:
+  - **Chain ID**: `5042002` (hex: `0x4CEF52`)
+  - **RPC URL**: `https://rpc.testnet.arc.network`
+  - **Explorer**: `https://testnet.arcscan.app`
+
+Let's begin by scaffolding the Foundry workspace and writing the `Sluice.sol` contract.
+```
