@@ -78,13 +78,10 @@ contract Sluice is ERC3525 {
     ///         per-second over `durationSeconds`. `taxBps` of every withdrawal is
     ///         routed to `taxVault`. Slot = employer address, so an employer's
     ///         streams can be split and merged among each other.
-    function createStream(
-        address recipient,
-        uint256 amount,
-        uint256 durationSeconds,
-        uint256 taxBps,
-        address taxVault
-    ) external returns (uint256 streamId) {
+    function createStream(address recipient, uint256 amount, uint256 durationSeconds, uint256 taxBps, address taxVault)
+        external
+        returns (uint256 streamId)
+    {
         require(recipient != address(0), "Sluice: recipient zero");
         require(amount > 0, "Sluice: amount zero");
         require(durationSeconds > 0 && durationSeconds <= type(uint64).max, "Sluice: bad duration");
@@ -248,8 +245,7 @@ contract Sluice is ERC3525 {
     function stakeInsurancePool(uint256 amount) external {
         require(amount > 0, "Sluice: amount zero");
         _pull(msg.sender, amount);
-        uint256 shares =
-            (totalPoolShares == 0 || poolBalance == 0) ? amount : (amount * totalPoolShares) / poolBalance;
+        uint256 shares = (totalPoolShares == 0 || poolBalance == 0) ? amount : (amount * totalPoolShares) / poolBalance;
         poolShares[msg.sender] += shares;
         totalPoolShares += shares;
         poolBalance += amount;
