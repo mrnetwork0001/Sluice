@@ -1,25 +1,17 @@
-<div align="center">
 
-# 🌊 Sluice
+
+# Sluice
 
 ### Payroll that flows, block by block.
 
-**Streaming USDC payroll and treasury infrastructure on [Arc](https://arc.network) —
+**Streaming USDC payroll and treasury infrastructure on [Arc](https://arc.network) -
 salaries vest every second, taxes split themselves, income becomes a liquid asset,
 and idle escrow earns yield across chains.**
-
-[![CI](https://github.com/mrnetwork0001/Sluice/actions/workflows/test.yml/badge.svg)](https://github.com/mrnetwork0001/Sluice/actions)
-![Solidity](https://img.shields.io/badge/Solidity-0.8.x-363636?logo=solidity)
-![Foundry](https://img.shields.io/badge/Foundry-26%2F26_tests-green)
-![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
-![Arc](https://img.shields.io/badge/Arc_Testnet-5042002-22D3EE)
-![Circle](https://img.shields.io/badge/Circle-CCTP_·_Swap_Kit_·_App_Kit-8A2BE2)
 
 *Built for the Programmable Money Hackathon · DeFi Track*
 
 <img src="docs/screenshots/02-dashboard.png" alt="Sluice dashboard" width="850"/>
 
-</div>
 
 ---
 
@@ -29,7 +21,7 @@ and idle escrow earns yield across chains.**
 - [Live Features](#live-features)
 - [Architecture](#architecture)
 - [How the Core Flows Work](#how-the-core-flows-work)
-- [Quick Start — Local Demo](#quick-start--local-demo)
+- [Quick Start - Local Demo](#quick-start--local-demo)
 - [Testing](#testing)
 - [Deploying to Arc Testnet](#deploying-to-arc-testnet)
 - [Repository Layout](#repository-layout)
@@ -45,14 +37,14 @@ and idle escrow earns yield across chains.**
 Payroll is the largest recurring money flow on earth, and it still runs like a
 1970s batch job:
 
-- Workers deliver value **every second** but are paid **every 30 days** — between
+- Workers deliver value **every second** but are paid **every 30 days** - between
   pay runs they are effectively their employer's unsecured creditors.
 - Tax withholding is manual back-office work, reconciled after the fact.
 - Payroll escrow is one of the largest pools of **dead capital** in any company.
 - Future income is real economic value that workers **cannot access, sell, or
   insure**.
 
-Sluice rebuilds payroll as programmable money on Arc — Circle's L1 where **USDC is
+Sluice rebuilds payroll as programmable money on Arc - Circle's L1 where **USDC is
 the gas token** and finality is sub-second. An employer escrows salary once; from
 that block onward the money *flows*.
 
@@ -60,70 +52,70 @@ that block onward the money *flows*.
 
 Everything below is implemented, tested, and clickable in this repository today.
 
-### 💧 Per-second salary streaming
+### Per-second salary streaming
 Employers open a stream with an amount, duration, tax rate, and tax vault
 (`createStream`). Salary vests continuously at a fixed USDC-per-second rate with
 6-decimal precision; employees withdraw any vested amount at any time.
 
-### 🧾 On-chain tax & compliance splits
+### Onchain tax & compliance splits
 Every withdrawal automatically routes the configured basis points to a designated
-tax vault **before** the employee is paid — compliance enforced by the contract,
+tax vault **before** the employee is paid - compliance enforced by the contract,
 not the back office. Configurable per stream (e.g. 8% payroll tax, 0% contractor).
 
-### 🎫 Streams are ERC-3525 semi-fungible tokens
+### Streams are ERC-3525 semi-fungible tokens
 Each stream is an SFT whose **token value equals the remaining streamable USDC**.
 A vendored, minimal ERC-3525 implementation (`contracts/erc3525/`) supports:
-- **Split** — carve part of a salary off to another address; deposit, rate, and
+- **Split** - carve part of a salary off to another address; deposit, rate, and
   vesting schedule carry over pro-rata with exact math.
-- **Merge** — combine same-schedule, same-employer streams.
-- **Transfer** — whole streams change owners; the new owner collects all future flow.
+- **Merge** - combine same-schedule, same-employer streams.
+- **Transfer** - whole streams change owners; the new owner collects all future flow.
 
-### 🏪 P2P stream factoring marketplace
+### P2P stream factoring marketplace
 Employees list streams for sale at a discount (`listStreamForSale`); any liquidity
-provider buys them (`buyStream`) — payment goes straight to the seller and the SFT
+provider buys them (`buyStream`) - payment goes straight to the seller and the SFT
 transfers atomically. Future income becomes instant liquidity, on standard rails.
 
-### ⏩ Self-repaying salary advances
+### Self-repaying salary advances
 `borrowSalaryAdvance` lets a stream owner draw up to **50% of unwithdrawn value**
-immediately — zero interest, zero liquidation risk. The advance repays itself as
+immediately - zero interest, zero liquidation risk. The advance repays itself as
 salary continues to vest.
 
-### 🛡️ Credit-default insurance pool
+### Credit-default insurance pool
 Employees pay a one-time **0.5% premium** (`insureStream`) into a share-based pool
 underwritten by USDC stakers (`stakeInsurancePool`). If the employer cancels a
 stream early, the unvested shortfall is claimable from the pool
 (`claimDefaultCoverage`). Stakers earn every premium.
 
-### ⚡ Stream-to-DeFi auto-triggers (Circle Swap Kit)
-Per-wallet automation rules run after every withdrawal — e.g. *"swap 20% of each
+### Stream-to-DeFi auto-triggers (Circle Swap Kit)
+Per-wallet automation rules run after every withdrawal - e.g. *"swap 20% of each
 paycheck to EURC."* Executed through `@circle-fin/swap-kit` with the connected
 wallet; on chains the kit does not yet route, the trigger records a labeled
 simulated run through the identical code path.
 
-### 🌐 Chain-abstracted payroll (CCTP burn-and-mint + hooks)
+### Chain-abstracted payroll (CCTP burn-and-mint + hooks)
 Arc settles; every other chain is an on/off ramp. Via `SluiceGate`:
-- **Fund from any chain** — a single CCTP burn with a `FUND_STREAM` hook opens the
+- **Fund from any chain** - a single CCTP burn with a `FUND_STREAM` hook opens the
   stream on Arc; the employer keeps cancel rights.
 - **Withdraw to any chain** — `withdrawToChain` pays tax on Arc and burns the net
   amount to the employee's chosen destination chain.
-- **Buy a stream from any chain** — a burn with a `BUY_STREAM` hook settles the
+- **Buy a stream from any chain** - a burn with a `BUY_STREAM` hook settles the
   marketplace purchase atomically on mint; over-payments and vanished listings
   refund automatically.
 
 The word "bridge" appears nowhere in the UI.
 
-### 🏦 Cross-chain auto-yield treasury
+### Cross-chain auto-yield treasury
 Idle escrow above a **40% liquidity buffer** sweeps into `SluiceTreasury`
-(`sweepIdle`, permissionless), which rebalances across yield venues — a local Arc
+(`sweepIdle`, permissionless), which rebalances across yield venues - a local Arc
 money market and a remote vault reached via hooked CCTP transfer. Withdrawals that
 outrun the buffer **auto-recall liquidity mid-transaction**; remote positions come
 home with their accrued yield through a hooked CCTP return. Full NAV accounting and
 an on-chain activity feed.
 
-### 🖥️ Full product frontend
+### Full product frontend
 Next.js 16 App Router app: marketing landing, live dashboard with per-second
 vesting animation, stream detail (withdraw / advance / insure / split / sell),
-marketplace, treasury console, and automation rules — plus a zero-install **demo
+marketplace, treasury console, and automation rules - plus a zero-install **demo
 wallet** for local evaluation.
 
 ## Architecture
@@ -161,7 +153,7 @@ flowchart LR
 |---|---|
 | [`Sluice.sol`](contracts/Sluice.sol) | Core payroll: ERC-3525 streams, vesting, tax splits, marketplace, advances, insurance pool, escrow-liability accounting |
 | [`erc3525/ERC3525.sol`](contracts/erc3525/ERC3525.sol) | Vendored minimal ERC-3525 with value-transfer hook |
-| [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver — cross-chain funding, buyouts, withdrawal exits |
+| [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver - cross-chain funding, buyouts, withdrawal exits |
 | [`crosschain/SluiceTreasury.sol`](contracts/crosschain/SluiceTreasury.sol) | Idle-escrow yield router: sweep / rebalance / recall, NAV, adapter registry |
 | [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | Local money-market adapter + CCTP remote-vault adapter |
 | [`crosschain/RemoteYieldVault.sol`](contracts/crosschain/RemoteYieldVault.sol) | Destination-chain vault; accrues APY, exits home with yield |
@@ -174,23 +166,23 @@ flowchart LR
 
 ## How the Core Flows Work
 
-**Stream lifecycle** — employer escrows `amount` USDC → SFT minted to employee with
+**Stream lifecycle** - employer escrows `amount` USDC → SFT minted to employee with
 value = amount → vests at `amount / duration` per second → withdrawals burn SFT
 value, split tax, pay net → employer cancellation pays out vested, refunds
 unvested (insured streams: the shortfall becomes a pool claim).
 
-**Cross-chain fund** — employer burns USDC on chain B with an ABI-encoded
+**Cross-chain fund** - employer burns USDC on chain B with an ABI-encoded
 `(FUND_STREAM, employer, recipient, duration, taxBps, taxVault)` hook → relayer
 delivers → messenger mints to `SluiceGate` and invokes `onCCTPHook` → gate opens
 the stream with the minted funds, crediting the original employer.
 
-**Treasury cycle** — anyone calls `sweepIdle()` (safe by construction: only
+**Treasury cycle** - anyone calls `sweepIdle()` (safe by construction: only
 escrow above the 40% buffer moves) → `rebalance()` allocates 50/50 to the Arc
 money market and, via hooked CCTP, the remote vault → any withdrawal exceeding
 Sluice's local balance triggers `treasury.recall()` inside `_push` →
 `requestRemoteReturn()` + relayer bring the remote position home **with yield**.
 
-## Quick Start — Local Demo
+## Quick Start - Local Demo
 
 Requirements: [Foundry](https://getfoundry.sh), Node 20+.
 
@@ -202,13 +194,13 @@ cd Sluice && cd web && npm install && cd ..
 
 `dev.sh` boots the entire twin-chain environment:
 
-1. Two anvil nodes — **Arc (local)** on `:8545` and **Base (local)** on `:8546`.
+1. Two anvil nodes - **Arc (local)** on `:8545` and **Base (local)** on `:8546`.
 2. Seeded deployments on both sides: three salary streams (one insured, two listed
    at a discount), a 50,000 USDC insurance pool, and the cross-chain treasury.
 3. The CCTP relayer (delivers burns, executes remote-vault returns).
 4. The web app on `http://localhost:3000` (or next free port).
 
-Open the app and click **Demo wallet** — it connects the seeded employee account
+Open the app and click **Demo wallet** - it connects the seeded employee account
 (anvil keeps dev accounts unlocked, so no browser extension is required). To play
 the employer or LP roles, import anvil dev keys #0 / #2 into MetaMask.
 
@@ -232,7 +224,7 @@ forge test -vvv     # verbose traces
 
 Coverage spans per-second rate math (6-decimal precision), ERC-3525 value splits
 and merges, marketplace validation, advance caps, insurance premiums/claims,
-cancellation settlement, and the entire cross-chain stack — hooked funding,
+cancellation settlement, and the entire cross-chain stack - hooked funding,
 cross-chain buyouts (including refund paths), withdrawal exits, treasury
 sweep/rebalance/recall bounds, and remote yield returns. The test suite plays the
 CCTP relayer itself, so cross-chain flows are exercised deterministically in one
@@ -279,7 +271,7 @@ dev.sh                   one-command twin-chain demo
 
 | Layer | Technology |
 |---|---|
-| Settlement | **Arc L1** — USDC gas, sub-second finality |
+| Settlement | **Arc L1** - USDC gas, sub-second finality |
 | Contracts | Solidity 0.8.x, Foundry (via-IR), vendored ERC-3525 |
 | Cross-chain | **CCTP v2 pattern** (burn/mint + hooks), local attestation relayer |
 | Stablecoin tooling | **Circle Swap Kit** (auto-conversion), **App Kit**, **Bridge Kit** + `provider-cctp-v2` (installed, testnet-ready), **Unified Balance Kit** |
@@ -288,29 +280,29 @@ dev.sh                   one-command twin-chain demo
 
 ## Roadmap & Planned Integrations
 
-**Phase 1 — Production rails** *(next)*
+**Phase 1 - Production rails** *(next)*
 - [ ] **Arc testnet deployment** of the full contract suite (script ready)
-- [ ] **Real CCTP v2 domains** via Circle **Bridge Kit** — replace the mock
+- [ ] **Real CCTP v2 domains** via Circle **Bridge Kit** - replace the mock
       messenger with attested transfers across Arc, Base, Ethereum, and Arbitrum
-- [ ] **Circle Gateway / Unified Balance Kit** on the dashboard — one balance view
+- [ ] **Circle Gateway / Unified Balance Kit** on the dashboard - one balance view
       across every chain an employee touches
 - [ ] Public deployment at **sluiceapp.xyz**
 
-**Phase 2 — Payroll operations**
+**Phase 2 - Payroll operations**
 - [ ] Employer console: batch stream creation (CSV → payroll run), org-level
       treasury policies, role-based access
-- [ ] **EURC salary legs** — multi-currency payroll with on-withdrawal FX via Swap Kit
+- [ ] **EURC salary legs** - multi-currency payroll with on-withdrawal FX via Swap Kit
 - [ ] Scheduled top-ups and auto-renewing pay periods
 - [ ] Streaming invoices for contractors (reverse direction)
 
-**Phase 3 — Deeper DeFi**
+**Phase 3 - Deeper DeFi**
 - [ ] Real yield venues behind the adapter interface (Aave-class money markets,
       tokenized T-bill vaults) with risk-weighted allocation targets
 - [ ] Secondary-market order book for streams (bids, auctions, partial fills)
 - [ ] Under-collateralized credit scoring from on-chain income history
 - [ ] Insurance-pool tranching (junior/senior risk)
 
-**Phase 4 — Reach**
+**Phase 4 - Reach**
 - [ ] Fiat off-ramp partners on withdrawal (salary → bank account)
 - [ ] Account-abstraction wallets & gas sponsorship for employees
 - [ ] Mobile-first PWA
@@ -330,7 +322,7 @@ slide script in [`docs/PITCH_DECK.md`](docs/PITCH_DECK.md).
 
 ## Security & Disclaimers
 
-This is **hackathon software** — unaudited, and not production-ready:
+This is **hackathon software** - unaudited, and not production-ready:
 
 - `MockUSDC`, `MockCCTPMessenger`, the yield adapters, and `RemoteYieldVault` are
   local demo primitives (open mint/burn, permissionless relaying). Production uses
@@ -343,5 +335,5 @@ This is **hackathon software** — unaudited, and not production-ready:
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Built with Foundry, Circle developer tooling, and
+MIT - see [`LICENSE`](LICENSE). Built with Foundry, Circle developer tooling, and
 the Arc network.
