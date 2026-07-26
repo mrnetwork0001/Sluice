@@ -96,7 +96,7 @@ simulated run through the identical code path.
 Arc settles; every other chain is an on/off ramp. Via `SluiceGate`:
 - **Fund from any chain** - a single CCTP burn with a `FUND_STREAM` hook opens the
   stream on Arc; the employer keeps cancel rights.
-- **Withdraw to any chain** — `withdrawToChain` pays tax on Arc and burns the net
+- **Withdraw to any chain** - `withdrawToChain` pays tax on Arc and burns the net
   amount to the employee's chosen destination chain.
 - **Buy a stream from any chain** - a burn with a `BUY_STREAM` hook settles the
   marketplace purchase atomically on mint; over-payments and vanished listings
