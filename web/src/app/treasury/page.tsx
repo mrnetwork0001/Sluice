@@ -7,7 +7,7 @@ import { useSluiceAddress, useSluiceWrite, useUsdcAddress } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { treasuryAbi } from "@/lib/treasuryAbi";
 import { erc20Abi } from "@/lib/erc20Abi";
-import { TREASURY_ADDRESS, domainLabel } from "@/lib/crosschain";
+import { TREASURY_ADDRESS, crossChainEnabled, domainLabel } from "@/lib/crosschain";
 import { formatUsdc } from "@/lib/format";
 import { Badge, Button, Card, CardTitle, EmptyState, PageHeader, Stat, TxBanner } from "@/components/ui";
 
@@ -72,6 +72,7 @@ function useTreasuryActivity() {
 
 export default function TreasuryPage() {
   const { isConnected } = useAccount();
+  const chainId = useChainId();
   const sluice = useSluiceAddress();
   const usdc = useUsdcAddress();
   const { send, status, reset, busy } = useSluiceWrite();
@@ -110,6 +111,18 @@ export default function TreasuryPage() {
         <EmptyState
           title="Connect a wallet"
           body="The treasury view shows where idle payroll escrow is earning yield across chains."
+        />
+      </div>
+    );
+  }
+
+  if (!crossChainEnabled(chainId)) {
+    return (
+      <div>
+        <PageHeader title="Treasury" />
+        <EmptyState
+          title="Treasury demo runs on the local twin-chain rig"
+          body="On Arc Testnet only the core Sluice contract is live so far. The cross-chain auto-yield treasury ships there with the Bridge Kit / real-CCTP integration — switch to Arc (local) to see it in action today."
         />
       </div>
     );

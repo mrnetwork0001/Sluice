@@ -16,10 +16,12 @@ import {
   TxBanner,
   inputClass,
 } from "@/components/ui";
+import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
   BASE_SIDE,
   GATE_ADDRESS,
+  crossChainEnabled,
   encodeBuyStreamHook,
   messengerAbi,
 } from "@/lib/crosschain";
@@ -171,6 +173,8 @@ function ListingCard({ id }: { id: bigint }) {
 
 function Listing({ stream }: { stream: Stream }) {
   const { address } = useAccount();
+  const chainId = useChainId();
+  const canCrossChain = crossChainEnabled(chainId);
   const now = useNow();
   const { send, status, reset, busy } = useSluiceWrite();
 
@@ -261,33 +265,35 @@ function Listing({ stream }: { stream: Stream }) {
             >
               Buy for {formatUsdc(stream.salePrice)} USDC
             </Button>
-            <Button
-              variant="ghost"
-              className="w-full"
-              disabled={busy || !address}
-              onClick={() =>
-                address &&
-                void send({
-                  to: { address: BASE_SIDE.messenger, abi: messengerAbi },
-                  chainId: BASE_SIDE.chainId,
-                  functionName: "depositForBurnWithHook",
-                  args: [
-                    stream.salePrice,
-                    ARC_DOMAIN,
-                    GATE_ADDRESS,
-                    encodeBuyStreamHook(address, stream.id),
-                  ],
-                  approval: {
-                    token: BASE_SIDE.usdc,
-                    spender: BASE_SIDE.messenger,
-                    amount: stream.salePrice,
-                  },
-                  label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base — the gate settles the purchase on Arc via CCTP hook`,
-                })
-              }
-            >
-              Buy from Base via CCTP ⚡
-            </Button>
+            {canCrossChain ? (
+              <Button
+                variant="ghost"
+                className="w-full"
+                disabled={busy || !address}
+                onClick={() =>
+                  address &&
+                  void send({
+                    to: { address: BASE_SIDE.messenger, abi: messengerAbi },
+                    chainId: BASE_SIDE.chainId,
+                    functionName: "depositForBurnWithHook",
+                    args: [
+                      stream.salePrice,
+                      ARC_DOMAIN,
+                      GATE_ADDRESS,
+                      encodeBuyStreamHook(address, stream.id),
+                    ],
+                    approval: {
+                      token: BASE_SIDE.usdc,
+                      spender: BASE_SIDE.messenger,
+                      amount: stream.salePrice,
+                    },
+                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base — the gate settles the purchase on Arc via CCTP hook`,
+                  })
+                }
+              >
+                Buy from Base via CCTP ⚡
+              </Button>
+            ) : null}
           </>
         )}
       </div>

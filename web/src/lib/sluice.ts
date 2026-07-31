@@ -1,20 +1,27 @@
 import { sluiceAbi } from "./sluiceAbi";
 import { arcTestnet } from "./arc";
 import { anvilLocal } from "./wagmi";
+import arcDeployment from "./deployments.5042002.json";
 
 export { sluiceAbi };
+
+const ZERO = "0x0000000000000000000000000000000000000000";
+const arcSluice =
+  (process.env.NEXT_PUBLIC_SLUICE_ADDRESS as `0x${string}` | undefined) ??
+  (arcDeployment.sluice !== ZERO ? (arcDeployment.sluice as `0x${string}`) : undefined);
 
 /**
  * Deployed Sluice addresses per chain.
  * - Anvil: deterministic address from `script/DeployLocal.s.sol` on a fresh node
  *   (employer account nonce 1). Override with NEXT_PUBLIC_SLUICE_ADDRESS_LOCAL.
- * - Arc Testnet: set NEXT_PUBLIC_SLUICE_ADDRESS after `forge script script/Deploy.s.sol`.
+ * - Arc Testnet: written to deployments.5042002.json by `script/Deploy.s.sol`;
+ *   NEXT_PUBLIC_SLUICE_ADDRESS overrides.
  */
 export const SLUICE_ADDRESSES: Record<number, `0x${string}` | undefined> = {
   [anvilLocal.id]:
     (process.env.NEXT_PUBLIC_SLUICE_ADDRESS_LOCAL as `0x${string}` | undefined) ??
     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-  [arcTestnet.id]: process.env.NEXT_PUBLIC_SLUICE_ADDRESS as `0x${string}` | undefined,
+  [arcTestnet.id]: arcSluice,
 };
 
 /** Parsed `streams(uint256)` tuple. */

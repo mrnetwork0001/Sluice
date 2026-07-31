@@ -12,6 +12,18 @@ import { anvilLocal, anvilLocalB } from "./wagmi";
 export const ARC_DOMAIN = 26;
 export const BASE_DOMAIN = 6;
 
+/**
+ * Cross-chain flows currently run against the local twin-chain rig (mock CCTP
+ * messenger + relayer). On other chains — including the real Arc Testnet, where
+ * only the core Sluice contract is deployed — the cross-chain UI is hidden until
+ * the Bridge Kit / real-CCTP integration lands.
+ */
+export const CROSSCHAIN_DEMO_CHAIN_ID = anvilLocal.id;
+
+export function crossChainEnabled(chainId: number): boolean {
+  return chainId === CROSSCHAIN_DEMO_CHAIN_ID;
+}
+
 export interface ChainSide {
   chainId: number;
   domain: number;

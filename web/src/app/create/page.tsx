@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { useSluiceWrite, useUsdcBalance } from "@/lib/hooks";
 import { formatUsdc, formatUsdcExact, parseUsdc } from "@/lib/format";
+import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
   BASE_SIDE,
   GATE_ADDRESS,
+  crossChainEnabled,
   encodeFundStreamHook,
   messengerAbi,
 } from "@/lib/crosschain";
@@ -22,6 +24,8 @@ const durationUnits = [
 
 export default function CreateStreamPage() {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const canCrossChain = crossChainEnabled(chainId);
   const { data: balance } = useUsdcBalance(address);
   const { send, status, reset, busy } = useSluiceWrite();
 
@@ -134,23 +138,25 @@ export default function CreateStreamPage() {
               />
             </Field>
           </div>
-          <Field
-            label="Fund from"
-            hint={
-              fundFrom === "base"
-                ? "Burns USDC on Base via CCTP; the gate hook opens the stream on Arc when the relayer delivers the mint."
-                : undefined
-            }
-          >
-            <select
-              className={inputClass}
-              value={fundFrom}
-              onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
+          {canCrossChain ? (
+            <Field
+              label="Fund from"
+              hint={
+                fundFrom === "base"
+                  ? "Burns USDC on Base via CCTP; the gate hook opens the stream on Arc when the relayer delivers the mint."
+                  : undefined
+              }
             >
-              <option value="arc">This wallet on Arc (local)</option>
-              <option value="base">Treasury on Base (local) — via CCTP</option>
-            </select>
-          </Field>
+              <select
+                className={inputClass}
+                value={fundFrom}
+                onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
+              >
+                <option value="arc">This wallet on Arc (local)</option>
+                <option value="base">Treasury on Base (local) — via CCTP</option>
+              </select>
+            </Field>
+          ) : null}
         </div>
 
         {ratePerSecond !== undefined ? (
