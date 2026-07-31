@@ -231,14 +231,27 @@ CCTP relayer itself, so cross-chain flows are exercised deterministically in one
 EVM. CI (GitHub Actions) enforces `forge fmt`, the build, and the full suite on
 every push.
 
-## Deploying to Arc Testnet
+## Live on Arc Testnet 🟢
+
+The core Sluice contract is **deployed, seeded, and streaming** on the real Arc
+Testnet — per-second vesting, tax splits, marketplace, advances, and the
+insurance pool all run against native USDC:
 
 | | |
 |---|---|
+| **Sluice contract** | [`0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4`](https://testnet.arcscan.app/address/0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4) |
 | Chain ID | `5042002` (`0x4CEF52`) |
 | RPC | `https://rpc.testnet.arc.network` |
 | Explorer | `https://testnet.arcscan.app` |
 | USDC (native gas) | `0x3600000000000000000000000000000000000000` |
+
+Switch the in-app network to **Arc Testnet** and the frontend reads the live
+contract (address + deploy block resolve from
+`web/src/lib/deployments.5042002.json`; stream discovery pages `eth_getLogs` in
+10,000-block chunks to respect the public RPC cap). Cross-chain features remain
+on the local twin-chain rig until the Bridge Kit / real-CCTP integration lands.
+
+### Redeploying
 
 ```bash
 export PRIVATE_KEY=0x...   # funded with Arc testnet USDC

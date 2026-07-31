@@ -14,7 +14,7 @@ import { getPublicClient } from "wagmi/actions";
 import { wagmiConfig } from "./wagmi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { maxUint256, parseAbiItem, type BaseError } from "viem";
-import { SLUICE_ADDRESSES, parseStream, sluiceAbi, type Stream } from "./sluice";
+import { SLUICE_ADDRESSES, SLUICE_FROM_BLOCK, parseStream, sluiceAbi, type Stream } from "./sluice";
 import { erc20Abi } from "./erc20Abi";
 
 const streamCreatedEvent = parseAbiItem(
@@ -54,6 +54,12 @@ export interface StreamRef {
   recipient: `0x${string}`;
 }
 
+// Public RPCs cap eth_getLogs ranges (Arc testnet: 10,000 blocks), so stream
+// discovery pages forward in chunks from the deployment block and caches per
+// session — refetches only scan blocks minted since the last poll.
+const CHUNK = 9_999n;
+const streamScanCache = new Map<string, { scannedTo: bigint; refs: StreamRef[] }>();
+
 /** All streams ever created, discovered from StreamCreated logs. */
 export function useStreamIds() {
   const address = useSluiceAddress();
@@ -64,17 +70,33 @@ export function useStreamIds() {
     enabled: Boolean(client && address),
     refetchInterval: 6_000,
     queryFn: async (): Promise<StreamRef[]> => {
-      const logs = await client!.getLogs({
-        address,
-        event: streamCreatedEvent,
-        fromBlock: 0n,
-        toBlock: "latest",
-      });
-      return logs.map((log) => ({
-        id: log.args.streamId!,
-        employer: log.args.employer!,
-        recipient: log.args.recipient!,
-      }));
+      const cacheKey = `${chainId}:${address}`;
+      const cache = streamScanCache.get(cacheKey) ?? {
+        scannedTo: (SLUICE_FROM_BLOCK[chainId] ?? 0n) - 1n,
+        refs: [],
+      };
+      const latest = await client!.getBlockNumber();
+      let from = cache.scannedTo + 1n;
+      while (from <= latest) {
+        const to = from + CHUNK > latest ? latest : from + CHUNK;
+        const logs = await client!.getLogs({
+          address,
+          event: streamCreatedEvent,
+          fromBlock: from,
+          toBlock: to,
+        });
+        for (const log of logs) {
+          cache.refs.push({
+            id: log.args.streamId!,
+            employer: log.args.employer!,
+            recipient: log.args.recipient!,
+          });
+        }
+        cache.scannedTo = to;
+        from = to + 1n;
+      }
+      streamScanCache.set(cacheKey, cache);
+      return [...cache.refs];
     },
   });
 }

@@ -24,6 +24,16 @@ export const SLUICE_ADDRESSES: Record<number, `0x${string}` | undefined> = {
   [arcTestnet.id]: arcSluice,
 };
 
+/**
+ * First block worth scanning for Sluice events per chain. Public RPCs cap
+ * eth_getLogs ranges (Arc testnet: 10,000 blocks), so scans start at the
+ * deployment block and page forward in chunks.
+ */
+export const SLUICE_FROM_BLOCK: Record<number, bigint> = {
+  [anvilLocal.id]: 0n,
+  [arcTestnet.id]: BigInt(arcDeployment.fromBlock ?? 0),
+};
+
 /** Parsed `streams(uint256)` tuple. */
 export interface Stream {
   id: bigint;
