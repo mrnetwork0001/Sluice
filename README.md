@@ -23,7 +23,7 @@ and idle escrow earns yield across chains.**
 - [How the Core Flows Work](#how-the-core-flows-work)
 - [Quick Start - Local Demo](#quick-start--local-demo)
 - [Testing](#testing)
-- [Deploying to Arc Testnet](#deploying-to-arc-testnet)
+- [Live on Arc Testnet](#live-on-arc-testnet)
 - [Repository Layout](#repository-layout)
 - [Technology Stack](#technology-stack)
 - [Roadmap & Planned Integrations](#roadmap--planned-integrations)
@@ -231,10 +231,10 @@ CCTP relayer itself, so cross-chain flows are exercised deterministically in one
 EVM. CI (GitHub Actions) enforces `forge fmt`, the build, and the full suite on
 every push.
 
-## Live on Arc Testnet 🟢
+## Live on Arc Testnet
 
 The core Sluice contract is **deployed, seeded, and streaming** on the real Arc
-Testnet — per-second vesting, tax splits, marketplace, advances, and the
+Testnet - per-second vesting, tax splits, marketplace, advances, and the
 insurance pool all run against native USDC:
 
 | | |
