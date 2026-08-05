@@ -1,6 +1,5 @@
 import { sluiceAbi } from "./sluiceAbi";
 import { arcTestnet } from "./arc";
-import { anvilLocal } from "./wagmi";
 import arcDeployment from "./deployments.5042002.json";
 
 export { sluiceAbi };
@@ -11,16 +10,11 @@ const arcSluice =
   (arcDeployment.sluice !== ZERO ? (arcDeployment.sluice as `0x${string}`) : undefined);
 
 /**
- * Deployed Sluice addresses per chain.
- * - Anvil: deterministic address from `script/DeployLocal.s.sol` on a fresh node
- *   (employer account nonce 1). Override with NEXT_PUBLIC_SLUICE_ADDRESS_LOCAL.
- * - Arc Testnet: written to deployments.5042002.json by `script/Deploy.s.sol`;
- *   NEXT_PUBLIC_SLUICE_ADDRESS overrides.
+ * Deployed Sluice addresses per chain. Arc Testnet is the only chain the app
+ * connects to; the address is written to deployments.5042002.json by
+ * `script/Deploy.s.sol` (NEXT_PUBLIC_SLUICE_ADDRESS overrides).
  */
 export const SLUICE_ADDRESSES: Record<number, `0x${string}` | undefined> = {
-  [anvilLocal.id]:
-    (process.env.NEXT_PUBLIC_SLUICE_ADDRESS_LOCAL as `0x${string}` | undefined) ??
-    "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
   [arcTestnet.id]: arcSluice,
 };
 
@@ -30,7 +24,6 @@ export const SLUICE_ADDRESSES: Record<number, `0x${string}` | undefined> = {
  * deployment block and page forward in chunks.
  */
 export const SLUICE_FROM_BLOCK: Record<number, bigint> = {
-  [anvilLocal.id]: 0n,
   [arcTestnet.id]: BigInt(arcDeployment.fromBlock ?? 0),
 };
 

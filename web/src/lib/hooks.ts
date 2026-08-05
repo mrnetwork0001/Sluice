@@ -76,26 +76,51 @@ export function useStreamIds() {
         refs: [],
       };
       const latest = await client!.getBlockNumber();
-      let from = cache.scannedTo + 1n;
-      while (from <= latest) {
-        const to = from + CHUNK > latest ? latest : from + CHUNK;
-        const logs = await client!.getLogs({
-          address,
-          event: streamCreatedEvent,
-          fromBlock: from,
-          toBlock: to,
-        });
-        for (const log of logs) {
-          cache.refs.push({
-            id: log.args.streamId!,
-            employer: log.args.employer!,
-            recipient: log.args.recipient!,
-          });
-        }
-        cache.scannedTo = to;
-        from = to + 1n;
+      // Collect pending ranges, then scan them in parallel waves — a cold start
+      // on Arc testnet can be dozens of chunks (~1s blocks add ~9 chunks/day).
+      const ranges: Array<[bigint, bigint]> = [];
+      for (let from = cache.scannedTo + 1n; from <= latest; from += CHUNK + 1n) {
+        ranges.push([from, from + CHUNK > latest ? latest : from + CHUNK]);
       }
-      streamScanCache.set(cacheKey, cache);
+      // Modest concurrency + retry + partial progress: public RPCs rate-limit
+      // aggressive scans, and a failed wave must not blank the UI — scannedTo
+      // persists, so the next poll resumes where this one stopped.
+      const WAVE = 3;
+      const scanWave = (wave: Array<[bigint, bigint]>) =>
+        Promise.all(
+          wave.map(([fromBlock, toBlock]) =>
+            client!.getLogs({ address, event: streamCreatedEvent, fromBlock, toBlock }),
+          ),
+        );
+      for (let i = 0; i < ranges.length; i += WAVE) {
+        const wave = ranges.slice(i, i + WAVE);
+        let results: Awaited<ReturnType<typeof scanWave>>;
+        try {
+          results = await scanWave(wave);
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          try {
+            results = await scanWave(wave);
+          } catch {
+            break; // rate-limited — return partial progress, resume next poll
+          }
+        }
+        for (const logs of results) {
+          for (const log of logs) {
+            cache.refs.push({
+              id: log.args.streamId!,
+              employer: log.args.employer!,
+              recipient: log.args.recipient!,
+            });
+          }
+        }
+        cache.scannedTo = wave[wave.length - 1]![1];
+        streamScanCache.set(cacheKey, cache);
+        if (i + WAVE < ranges.length) {
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+      }
+      cache.refs.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return [...cache.refs];
     },
   });

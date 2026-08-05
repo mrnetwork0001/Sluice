@@ -119,10 +119,13 @@ export default function TreasuryPage() {
   if (!crossChainEnabled(chainId)) {
     return (
       <div>
-        <PageHeader title="Treasury" />
+        <PageHeader
+          title="Treasury"
+          sub="Idle payroll escrow swept into cross-chain yield venues via CCTP, recalled on demand."
+        />
         <EmptyState
-          title="Treasury demo runs on the local twin-chain rig"
-          body="On Arc Testnet only the core Sluice contract is live so far. The cross-chain auto-yield treasury ships there with the Bridge Kit / real-CCTP integration — switch to Arc (local) to see it in action today."
+          title="Coming to Arc Testnet with the Bridge Kit integration"
+          body="The auto-yield treasury (sweep → rebalance across chains → auto-recall for withdrawals) is fully built and tested against a local CCTP rig — see SluiceTreasury.sol and the repo's ./dev.sh demo. It goes live here once real CCTP domains connect Arc to other chains."
         />
       </div>
     );

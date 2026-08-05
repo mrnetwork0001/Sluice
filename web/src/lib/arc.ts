@@ -14,6 +14,10 @@ export const arcTestnet = defineChain({
   blockExplorers: {
     default: { name: "Arcscan", url: "https://testnet.arcscan.app" },
   },
+  contracts: {
+    // Canonical Multicall3 — verified deployed on Arc testnet; lets wagmi batch reads.
+    multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" },
+  },
   testnet: true,
 });
 

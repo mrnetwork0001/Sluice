@@ -1,24 +1,21 @@
 import { encodeAbiParameters } from "viem";
 import depA from "./deployments.31337.json";
 import depB from "./deployments.31338.json";
-import { anvilLocal, anvilLocalB } from "./wagmi";
 
 /**
- * Cross-chain demo topology: two local anvils playing Arc (CCTP domain 26) and
- * Base (domain 6), joined by the mock CCTP messengers + the relayer. On real
- * testnets the same flows route through Circle's Bridge Kit / CCTP v2.
+ * Cross-chain development topology: two local anvils playing Arc (CCTP domain
+ * 26) and Base (domain 6), joined by the mock CCTP messengers + the relayer
+ * (`./dev.sh`). The production app targets Arc Testnet only, so these flows are
+ * hidden in the UI until the Bridge Kit / real-CCTP integration lands.
  */
 
 export const ARC_DOMAIN = 26;
 export const BASE_DOMAIN = 6;
 
-/**
- * Cross-chain flows currently run against the local twin-chain rig (mock CCTP
- * messenger + relayer). On other chains — including the real Arc Testnet, where
- * only the core Sluice contract is deployed — the cross-chain UI is hidden until
- * the Bridge Kit / real-CCTP integration lands.
- */
-export const CROSSCHAIN_DEMO_CHAIN_ID = anvilLocal.id;
+const LOCAL_ARC_CHAIN_ID = 31337;
+const LOCAL_BASE_CHAIN_ID = 31338;
+
+export const CROSSCHAIN_DEMO_CHAIN_ID = LOCAL_ARC_CHAIN_ID;
 
 export function crossChainEnabled(chainId: number): boolean {
   return chainId === CROSSCHAIN_DEMO_CHAIN_ID;
@@ -33,7 +30,7 @@ export interface ChainSide {
 }
 
 export const ARC_SIDE: ChainSide = {
-  chainId: anvilLocal.id,
+  chainId: LOCAL_ARC_CHAIN_ID,
   domain: ARC_DOMAIN,
   label: "Arc (local)",
   usdc: depA.usdc as `0x${string}`,
@@ -41,7 +38,7 @@ export const ARC_SIDE: ChainSide = {
 };
 
 export const BASE_SIDE: ChainSide = {
-  chainId: anvilLocalB.id,
+  chainId: LOCAL_BASE_CHAIN_ID,
   domain: BASE_DOMAIN,
   label: "Base (local)",
   usdc: depB.usdc as `0x${string}`,

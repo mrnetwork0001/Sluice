@@ -235,8 +235,16 @@ export function Landing() {
           </div>
           {!isConnected ? (
             <p className="mt-3 text-xs text-zinc-600">
-              No wallet? <span className="text-zinc-400">Demo wallet</span> connects a seeded local
-              account — nothing to install.
+              Live on Arc Testnet — grab gas USDC at{" "}
+              <a
+                href="https://faucet.circle.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-400 hover:text-cyan-300"
+              >
+                faucet.circle.com
+              </a>{" "}
+              and connect any EVM wallet.
             </p>
           ) : null}
         </div>

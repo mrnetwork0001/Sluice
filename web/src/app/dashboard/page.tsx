@@ -52,8 +52,17 @@ export default function DashboardPage() {
         <Card className="mx-auto flex max-w-md flex-col items-center gap-4 py-12 text-center">
           <h1 className="text-xl font-bold text-zinc-50">Your dashboard is waiting</h1>
           <p className="max-w-sm text-sm text-zinc-400">
-            Connect a wallet to see your salary streams, claimable balances, and the streams you
-            fund — or use the demo wallet on the seeded local chain.
+            Connect a wallet on Arc Testnet to see your salary streams, claimable balances, and
+            the streams you fund. Need gas USDC? Grab some at{" "}
+            <a
+              href="https://faucet.circle.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-cyan-400 hover:text-cyan-300"
+            >
+              faucet.circle.com
+            </a>
+            .
           </p>
           <ConnectButton />
         </Card>
