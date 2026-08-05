@@ -55,12 +55,12 @@ const baseChain = defineChain({
 
 const sides = {
   arc: {
-    key: "arc", chain: arcChain, domain: 26, usdc: "0x3600000000000000000000000000000000000000",
+    key: "arc", chain: arcChain, domain: 26, chunk: 9_998n, usdc: "0x3600000000000000000000000000000000000000",
     hookReceivers: new Set([depArc.gate?.toLowerCase(), depArc.treasury?.toLowerCase()].filter(Boolean)),
     ourDepositors: new Set([depArc.gate?.toLowerCase(), depArc.remoteAdapter?.toLowerCase()].filter(Boolean)),
   },
   base: {
-    key: "base", chain: baseChain, domain: 6, usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    key: "base", chain: baseChain, domain: 6, chunk: 998n, usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     hookReceivers: new Set([depBase.remoteVault?.toLowerCase()].filter(Boolean)),
     ourDepositors: new Set([depBase.remoteVault?.toLowerCase()].filter(Boolean)),
   },
@@ -101,11 +101,24 @@ async function discoverBurns(src) {
   let from = state.lastBlock[cursorKey] ? BigInt(state.lastBlock[cursorKey]) + 1n : latest - 500n;
   if (from < 0n) from = 0n;
   while (from <= latest) {
-    const to = from + 9_998n > latest ? latest : from + 9_998n;
-    const logs = await src.pub.getContractEvents({
-      address: TOKEN_MESSENGER, abi: messengerAbi, eventName: "DepositForBurn",
-      fromBlock: from, toBlock: to,
-    });
+    let span = src.chunk;
+    let to = from + span > latest ? latest : from + span;
+    let logs;
+    // Adaptive: public RPCs reject ranges by block count OR result count; halve
+    // until accepted so a busy range can never wedge the cursor.
+    for (;;) {
+      try {
+        logs = await src.pub.getContractEvents({
+          address: TOKEN_MESSENGER, abi: messengerAbi, eventName: "DepositForBurn",
+          fromBlock: from, toBlock: to,
+        });
+        break;
+      } catch (error) {
+        if (span <= 25n) throw error;
+        span /= 2n;
+        to = from + span > latest ? latest : from + span;
+      }
+    }
     for (const eventLog of logs) {
       const burn = eventLog.args;
       const dst = byDomain[Number(burn.destinationDomain)];

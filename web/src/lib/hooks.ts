@@ -58,11 +58,19 @@ export interface StreamRef {
   recipient: `0x${string}`;
 }
 
-// Public RPCs cap eth_getLogs ranges (Arc testnet: 10,000 blocks), so stream
-// discovery pages forward in chunks from the deployment block and caches per
-// session — refetches only scan blocks minted since the last poll.
+// Arc mints ~1s blocks and caps eth_getLogs at 10,000 blocks, so a naive scan
+// from the deployment block takes minutes. Two cursors instead: `head` walks
+// forward over new blocks each poll (instant for fresh activity), while `tail`
+// walks backward one chunk per poll toward the deployment block — so the newest
+// streams render within seconds and history fills in behind them.
 const CHUNK = 9_999n;
-const streamScanCache = new Map<string, { scannedTo: bigint; refs: StreamRef[] }>();
+interface ScanState {
+  head: bigint;
+  tail: bigint;
+  floor: bigint;
+  refs: Map<string, StreamRef>;
+}
+const streamScanCache = new Map<string, ScanState>();
 
 /** All streams ever created, discovered from StreamCreated logs. */
 export function useStreamIds() {
@@ -72,60 +80,57 @@ export function useStreamIds() {
   return useQuery({
     queryKey: ["stream-ids", chainId, address],
     enabled: Boolean(client && address),
-    refetchInterval: 6_000,
+    refetchInterval: 4_000,
     queryFn: async (): Promise<StreamRef[]> => {
       const cacheKey = `${chainId}:${address}`;
-      const cache = streamScanCache.get(cacheKey) ?? {
-        scannedTo: (SLUICE_FROM_BLOCK[chainId] ?? 0n) - 1n,
-        refs: [],
-      };
       const latest = await client!.getBlockNumber();
-      // Collect pending ranges, then scan them in parallel waves — a cold start
-      // on Arc testnet can be dozens of chunks (~1s blocks add ~9 chunks/day).
-      const ranges: Array<[bigint, bigint]> = [];
-      for (let from = cache.scannedTo + 1n; from <= latest; from += CHUNK + 1n) {
-        ranges.push([from, from + CHUNK > latest ? latest : from + CHUNK]);
-      }
-      // Modest concurrency + retry + partial progress: public RPCs rate-limit
-      // aggressive scans, and a failed wave must not blank the UI — scannedTo
-      // persists, so the next poll resumes where this one stopped.
-      const WAVE = 3;
-      const scanWave = (wave: Array<[bigint, bigint]>) =>
-        Promise.all(
-          wave.map(([fromBlock, toBlock]) =>
-            client!.getLogs({ address, event: streamCreatedEvent, fromBlock, toBlock }),
-          ),
-        );
-      for (let i = 0; i < ranges.length; i += WAVE) {
-        const wave = ranges.slice(i, i + WAVE);
-        let results: Awaited<ReturnType<typeof scanWave>>;
-        try {
-          results = await scanWave(wave);
-        } catch {
-          await new Promise((resolve) => setTimeout(resolve, 800));
-          try {
-            results = await scanWave(wave);
-          } catch {
-            break; // rate-limited — return partial progress, resume next poll
-          }
-        }
-        for (const logs of results) {
-          for (const log of logs) {
-            cache.refs.push({
-              id: log.args.streamId!,
-              employer: log.args.employer!,
-              recipient: log.args.recipient!,
-            });
-          }
-        }
-        cache.scannedTo = wave[wave.length - 1]![1];
+      const floor = SLUICE_FROM_BLOCK[chainId] ?? 0n;
+      let cache = streamScanCache.get(cacheKey);
+      if (!cache) {
+        // Start at the head: one chunk back from latest covers recent activity.
+        const start = latest - CHUNK > floor ? latest - CHUNK : floor;
+        cache = { head: start - 1n, tail: start, floor, refs: new Map() };
         streamScanCache.set(cacheKey, cache);
-        if (i + WAVE < ranges.length) {
-          await new Promise((resolve) => setTimeout(resolve, 120));
+      }
+
+      const scan = async (fromBlock: bigint, toBlock: bigint) => {
+        const logs = await client!.getLogs({ address, event: streamCreatedEvent, fromBlock, toBlock });
+        for (const log of logs) {
+          const id = log.args.streamId!;
+          cache!.refs.set(id.toString(), {
+            id,
+            employer: log.args.employer!,
+            recipient: log.args.recipient!,
+          });
+        }
+      };
+
+      // 1) Forward: everything minted since the last poll.
+      try {
+        let from = cache.head + 1n;
+        while (from <= latest) {
+          const to = from + CHUNK > latest ? latest : from + CHUNK;
+          await scan(from, to);
+          cache.head = to;
+          from = to + 1n;
+        }
+      } catch {
+        /* transient RPC error — cursor stays put, retried next poll */
+      }
+
+      // 2) Backward: one chunk of history per poll until the deployment block.
+      if (cache.tail > cache.floor) {
+        const to = cache.tail - 1n;
+        const from = to - CHUNK > cache.floor ? to - CHUNK : cache.floor;
+        try {
+          await scan(from, to);
+          cache.tail = from;
+        } catch {
+          /* transient — retry the same range next poll */
         }
       }
-      cache.refs.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-      return [...cache.refs];
+
+      return [...cache.refs.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     },
   });
 }

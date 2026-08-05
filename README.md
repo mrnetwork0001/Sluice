@@ -239,17 +239,28 @@ insurance pool all run against native USDC:
 
 | | |
 |---|---|
-| **Sluice contract** | [`0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4`](https://testnet.arcscan.app/address/0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4) |
+| **Sluice (core payroll)** | [`0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4`](https://testnet.arcscan.app/address/0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4) |
+| **SluiceGate (CCTP entry/exit)** | [`0xFD1b983519126938A3bB10384C9D4DB932917a2D`](https://testnet.arcscan.app/address/0xFD1b983519126938A3bB10384C9D4DB932917a2D) |
+| **SluiceTreasury (auto-yield)** | [`0x3c0D8e1c1026AA89AA0C375F574990be7A86661E`](https://testnet.arcscan.app/address/0x3c0D8e1c1026AA89AA0C375F574990be7A86661E) |
+| **Arc Reserve Vault (4.2%)** | [`0x49Ec9317FFF9964014F64E4A2fC6F18F14AA3476`](https://testnet.arcscan.app/address/0x49Ec9317FFF9964014F64E4A2fC6F18F14AA3476) |
+| **CCTP Remote Adapter** | [`0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507`](https://testnet.arcscan.app/address/0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507) |
+| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4`](https://sepolia.basescan.org/address/0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4) |
 | Chain ID | `5042002` (`0x4CEF52`) |
 | RPC | `https://rpc.testnet.arc.network` |
 | Explorer | `https://testnet.arcscan.app` |
 | USDC (native gas) | `0x3600000000000000000000000000000000000000` |
 
-Switch the in-app network to **Arc Testnet** and the frontend reads the live
-contract (address + deploy block resolve from
-`web/src/lib/deployments.5042002.json`; stream discovery pages `eth_getLogs` in
-10,000-block chunks to respect the public RPC cap). Cross-chain features remain
-on the local twin-chain rig until the Bridge Kit / real-CCTP integration lands.
+**Cross-chain runs on real Circle CCTP v2 — nothing is mocked.** Burns go through
+the canonical `TokenMessengerV2`
+(`0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`, Arc domain 26 ↔ Base Sepolia
+domain 6), Circle's Iris API attests them, and the Sluice relayer
+([`web/scripts/cctp-relayer.mjs`](web/scripts/cctp-relayer.mjs)) delivers each
+mint via `MessageTransmitterV2.receiveMessage` and executes its hook. Yield is
+paid in real USDC from pre-funded reserves. Verified end-to-end on the live
+testnets: a 0.10 USDC withdrawal exited Arc and landed as **0.092 USDC on Base
+Sepolia** (net of 8% tax); a 2.00 USDC burn on Base Sepolia opened a salary
+stream on Arc through the gate hook; and the treasury swept escrow, split it
+across both chains, and recalled the remote position home with its yield.
 
 ### Redeploying
 
