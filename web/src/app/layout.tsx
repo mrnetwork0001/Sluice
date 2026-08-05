@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,9 +35,7 @@ export default function RootLayout({
         <Providers>
           <Nav />
           <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-          <footer className="mx-auto max-w-6xl px-4 pb-8 pt-4 text-xs text-zinc-600">
-            Sluice · Programmable Money Hackathon · Arc Testnet (chain 5042002) · USDC gas
-          </footer>
+          <Footer />
         </Providers>
       </body>
     </html>
