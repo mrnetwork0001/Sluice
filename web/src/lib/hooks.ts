@@ -12,6 +12,7 @@ import {
 } from "wagmi";
 import { getPublicClient } from "wagmi/actions";
 import { wagmiConfig } from "./wagmi";
+import { arcTestnet } from "./arc";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { maxUint256, parseAbiItem, type BaseError } from "viem";
 import { SLUICE_ADDRESSES, SLUICE_FROM_BLOCK, parseStream, sluiceAbi, type Stream } from "./sluice";
@@ -21,9 +22,10 @@ const streamCreatedEvent = parseAbiItem(
   "event StreamCreated(uint256 indexed streamId, address indexed employer, address indexed recipient, uint256 amount, uint256 durationSeconds, uint256 taxBps, address taxVault)",
 );
 
+/** The app's data home is Arc Testnet regardless of the wallet's current chain
+ *  (the wallet only visits Base Sepolia transiently to burn). */
 export function useSluiceAddress(): `0x${string}` | undefined {
-  const chainId = useChainId();
-  return SLUICE_ADDRESSES[chainId];
+  return SLUICE_ADDRESSES[arcTestnet.id];
 }
 
 export function useUsdcAddress(): `0x${string}` | undefined {
@@ -32,6 +34,7 @@ export function useUsdcAddress(): `0x${string}` | undefined {
     address,
     abi: sluiceAbi,
     functionName: "usdc",
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(address), staleTime: Infinity },
   });
   return data as `0x${string}` | undefined;
@@ -44,6 +47,7 @@ export function useUsdcBalance(account?: `0x${string}`) {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: account ? [account] : undefined,
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(usdc && account), refetchInterval: 5_000 },
   });
 }
@@ -63,8 +67,8 @@ const streamScanCache = new Map<string, { scannedTo: bigint; refs: StreamRef[] }
 /** All streams ever created, discovered from StreamCreated logs. */
 export function useStreamIds() {
   const address = useSluiceAddress();
-  const chainId = useChainId();
-  const client = usePublicClient();
+  const chainId = arcTestnet.id;
+  const client = usePublicClient({ chainId: arcTestnet.id });
   return useQuery({
     queryKey: ["stream-ids", chainId, address],
     enabled: Boolean(client && address),
@@ -130,7 +134,7 @@ export function useStreamIds() {
 export function useStream(id: bigint | undefined) {
   const address = useSluiceAddress();
   const enabled = Boolean(address && id !== undefined);
-  const contract = { address: address!, abi: sluiceAbi } as const;
+  const contract = { address: address!, abi: sluiceAbi, chainId: arcTestnet.id } as const;
   const { data, isLoading, error } = useReadContracts({
     contracts: enabled
       ? [

@@ -147,8 +147,10 @@ contract CCTPRemoteAdapter is IYieldAdapter {
     }
 
     function deposit(uint256 amount) external onlyTreasury {
-        if (principalSent == 0) sentAt = block.timestamp;
-        principalSent += amount;
+        // Compound the running estimate before adding, so top-ups never accrue
+        // retroactive yield from a stale sentAt.
+        principalSent = _estimate() + amount;
+        sentAt = block.timestamp;
         usdc.approve(address(tokenMessenger), amount);
         // Leaving Arc: standard finality is near-instant and fee-free.
         tokenMessenger.depositForBurnWithHook(
@@ -170,14 +172,21 @@ contract CCTPRemoteAdapter is IYieldAdapter {
     }
 
     /// @notice Called by the treasury when hooked funds arrive back from the vault.
-    function onReturn(uint256 amount) external onlyTreasury {
-        principalSent = amount >= principalSent ? 0 : principalSent - amount;
-        if (principalSent == 0) sentAt = 0;
+    ///         The vault always exits its FULL position (principal + yield, net of
+    ///         the CCTP fast fee), so the local estimate resets outright — no
+    ///         phantom dust survives fee deductions.
+    function onReturn(uint256) external onlyTreasury {
+        principalSent = 0;
+        sentAt = 0;
+    }
+
+    function _estimate() internal view returns (uint256) {
+        if (principalSent == 0) return 0;
+        return principalSent + (principalSent * _apyBps * (block.timestamp - sentAt)) / (365 days * 10_000);
     }
 
     function totalAssets() external view returns (uint256) {
-        if (principalSent == 0) return 0;
-        return principalSent + (principalSent * _apyBps * (block.timestamp - sentAt)) / (365 days * 10_000);
+        return _estimate();
     }
 
     function name() external view returns (string memory) {

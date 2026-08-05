@@ -194,8 +194,10 @@ export default function CreateStreamPage() {
                   to: { address: BASE_SIDE.messenger, abi: messengerAbi },
                   chainId: BASE_SIDE.chainId,
                   functionName: "depositForBurnWithHook",
+                  // Burn amount + fee headroom so the stream opens at (about) the
+                  // requested size after Circle's fast-transfer fee.
                   args: [
-                    parsedAmount,
+                    parsedAmount + fastMaxFee(parsedAmount),
                     ARC_DOMAIN,
                     addressToBytes32(GATE_ADDRESS),
                     BASE_SIDE.usdc,
@@ -213,7 +215,7 @@ export default function CreateStreamPage() {
                   approval: {
                     token: BASE_SIDE.usdc,
                     spender: BASE_SIDE.messenger,
-                    amount: parsedAmount,
+                    amount: parsedAmount + fastMaxFee(parsedAmount),
                   },
                   label: `Burned ${formatUsdc(parsedAmount)} USDC on Base Sepolia — Circle attests and the stream opens on Arc in ~20s`,
                 });

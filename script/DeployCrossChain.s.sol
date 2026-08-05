@@ -40,6 +40,7 @@ contract DeployCrossChain is Script {
         vm.serializeAddress(json, "gate", address(gate));
         vm.serializeAddress(json, "treasury", address(treasury));
         vm.serializeAddress(json, "relayer", relayer);
+        vm.serializeUint(json, "treasuryFromBlock", block.number);
         string memory out = vm.serializeAddress(json, "localAdapter", address(localAdapter));
         vm.writeJson(out, "./web/src/lib/deployments.5042002.json");
 

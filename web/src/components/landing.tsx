@@ -6,6 +6,7 @@ import { useAccount, useReadContract } from "wagmi";
 import { useSluiceAddress, useStreamIds } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { formatUsdc } from "@/lib/format";
+import { arcTestnet } from "@/lib/arc";
 import { ConnectButton } from "./connect-button";
 import { Badge, Card, ProgressBar } from "./ui";
 
@@ -193,6 +194,7 @@ export function Landing() {
     address: sluice,
     abi: sluiceAbi,
     functionName: "poolBalance",
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(sluice), refetchInterval: 10_000 },
   });
 

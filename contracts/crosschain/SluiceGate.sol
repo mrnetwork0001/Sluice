@@ -61,8 +61,17 @@ contract SluiceGate is ICCTPHookReceiver {
             (address employer, address recipient, uint256 durationSeconds, uint256 taxBps, address taxVault) =
                 abi.decode(payload, (address, address, uint256, uint256, address));
             usdc.approve(address(sluice), amount);
-            uint256 streamId = sluice.createStreamFor(employer, recipient, amount, durationSeconds, taxBps, taxVault);
-            emit CrossChainStreamFunded(streamId, sourceDomain, employer, amount);
+            try sluice.createStreamFor(employer, recipient, amount, durationSeconds, taxBps, taxVault) returns (
+                uint256 streamId
+            ) {
+                emit CrossChainStreamFunded(streamId, sourceDomain, employer, amount);
+            } catch {
+                // Invalid stream params must not strand the mint — refund the
+                // employer on Arc instead.
+                usdc.approve(address(sluice), 0);
+                require(usdc.transfer(employer, amount), "Gate: refund failed");
+                emit HookRefunded(sourceDomain, employer, amount, "stream creation failed");
+            }
         } else if (action == SluiceHooks.BUY_STREAM) {
             (address buyer, uint256 streamId) = abi.decode(payload, (address, uint256));
             uint256 price = sluice.salePriceOf(streamId);

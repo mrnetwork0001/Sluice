@@ -30,6 +30,7 @@ import {
   messengerAbi,
 } from "@/lib/crosschain";
 import Link from "next/link";
+import { arcTestnet } from "@/lib/arc";
 
 export default function MarketplacePage() {
   const { data: streamRefs, isLoading } = useStreamIds();
@@ -70,12 +71,14 @@ function InsurancePoolCard() {
     address: sluice,
     abi: sluiceAbi,
     functionName: "poolBalance",
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(sluice), refetchInterval: 8_000 },
   });
   const { data: totalShares } = useReadContract({
     address: sluice,
     abi: sluiceAbi,
     functionName: "totalPoolShares",
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(sluice), refetchInterval: 8_000 },
   });
   const { data: myShares } = useReadContract({
@@ -83,6 +86,7 @@ function InsurancePoolCard() {
     abi: sluiceAbi,
     functionName: "poolShares",
     args: address ? [address] : undefined,
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(sluice && address), refetchInterval: 8_000 },
   });
 
@@ -281,8 +285,10 @@ function Listing({ stream }: { stream: Stream }) {
                     to: { address: BASE_SIDE.messenger, abi: messengerAbi },
                     chainId: BASE_SIDE.chainId,
                     functionName: "depositForBurnWithHook",
+                    // Burn price + fee headroom: Circle deducts the fast-transfer
+                    // fee from the mint, and the gate refunds any excess on Arc.
                     args: [
-                      stream.salePrice,
+                      stream.salePrice + fastMaxFee(stream.salePrice),
                       ARC_DOMAIN,
                       addressToBytes32(GATE_ADDRESS),
                       BASE_SIDE.usdc,
@@ -294,7 +300,7 @@ function Listing({ stream }: { stream: Stream }) {
                     approval: {
                       token: BASE_SIDE.usdc,
                       spender: BASE_SIDE.messenger,
-                      amount: stream.salePrice,
+                      amount: stream.salePrice + fastMaxFee(stream.salePrice),
                     },
                     label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base Sepolia — Circle attests and the gate settles the purchase on Arc in ~20s`,
                   })

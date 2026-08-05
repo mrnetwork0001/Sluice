@@ -54,9 +54,15 @@ export const TREASURY_ADDRESS = defined((depArc as unknown as Record<string, str
 export const REMOTE_VAULT_ADDRESS = defined((depBase as unknown as Record<string, string | undefined>).remoteVault);
 export const RELAYER_ADDRESS = defined((depArc as unknown as Record<string, string | undefined>).relayer);
 
-/** Cross-chain UI is live on Arc Testnet once the gate is deployed and wired. */
-export function crossChainEnabled(chainId: number): boolean {
-  return chainId === arcTestnet.id && GATE_ADDRESS !== undefined;
+const arcJson = depArc as unknown as Record<string, number | string | undefined>;
+export const TREASURY_FROM_BLOCK = BigInt(
+  (arcJson.treasuryFromBlock as number | undefined) ?? (arcJson.fromBlock as number | undefined) ?? 0,
+);
+
+/** Cross-chain UI is live once the gate is deployed and wired. The app's data
+ *  home is always Arc, so the wallet's momentary chain is irrelevant here. */
+export function crossChainEnabled(_chainId?: number): boolean {
+  return GATE_ADDRESS !== undefined;
 }
 
 /** Left-pad an EVM address into CCTP's bytes32 representation. */

@@ -5,6 +5,7 @@ import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { useStreamIds, useSluiceAddress, useUsdcBalance } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { formatUsdc } from "@/lib/format";
+import { arcTestnet } from "@/lib/arc";
 import { StreamCard } from "@/components/stream-card";
 import { ConnectButton } from "@/components/connect-button";
 import { Card, EmptyState, PageHeader, Stat } from "@/components/ui";
@@ -18,6 +19,7 @@ export default function DashboardPage() {
     address: sluice,
     abi: sluiceAbi,
     functionName: "poolBalance",
+    chainId: arcTestnet.id,
     query: { enabled: Boolean(sluice), refetchInterval: 8_000 },
   });
 
@@ -29,6 +31,7 @@ export default function DashboardPage() {
       abi: sluiceAbi,
       functionName: "ownerOf" as const,
       args: [ref.id] as const,
+      chainId: arcTestnet.id,
     })),
     allowFailure: true,
     query: { enabled: Boolean(sluice && streamRefs?.length), refetchInterval: 5_000 },

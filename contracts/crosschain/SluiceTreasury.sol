@@ -162,6 +162,7 @@ contract SluiceTreasury is ICCTPHookReceiver {
         for (uint256 i = 0; i < adapters.length; i++) {
             if (adapters[i].isRemote()) {
                 CCTPRemoteAdapter(address(adapters[i])).onReturn(amount);
+                break; // exactly one position comes home per return message
             }
         }
         emit RemoteReturned(amount);

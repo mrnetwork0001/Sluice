@@ -7,7 +7,8 @@ import { useSluiceAddress, useSluiceWrite, useUsdcAddress } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { treasuryAbi } from "@/lib/treasuryAbi";
 import { erc20Abi } from "@/lib/erc20Abi";
-import { TREASURY_ADDRESS, crossChainEnabled, domainLabel } from "@/lib/crosschain";
+import { TREASURY_ADDRESS, TREASURY_FROM_BLOCK, crossChainEnabled, domainLabel } from "@/lib/crosschain";
+import { arcTestnet } from "@/lib/arc";
 import { formatUsdc } from "@/lib/format";
 import { Badge, Button, Card, CardTitle, EmptyState, PageHeader, Stat, TxBanner } from "@/components/ui";
 
@@ -24,48 +25,56 @@ interface ActivityEntry {
   text: string;
 }
 
+// Chunked + session-cached scan: Arc's RPC caps getLogs at 10,000 blocks, so we
+// page from the treasury deployment block and only scan new blocks per poll.
+const activityCache = { scannedTo: TREASURY_FROM_BLOCK - 1n, entries: [] as ActivityEntry[] };
+
+function describeActivity(eventName: string, args: Record<string, unknown>): string {
+  switch (eventName) {
+    case "Swept":
+      return `Swept ${formatUsdc(args.amount as bigint)} USDC of idle escrow in from Sluice`;
+    case "Recalled":
+      return `Recalled ${formatUsdc(args.amount as bigint)} USDC back to Sluice for a withdrawal`;
+    case "Rebalanced":
+      return `Rebalanced — allocated [${(args.allocations as bigint[])
+        .map((allocation) => formatUsdc(allocation))
+        .join(" · ")}] USDC across venues`;
+    case "RemoteReturnRequested":
+      return `Requested return from the ${domainLabel(Number(args.domain))} vault (relayer executing)`;
+    case "RemoteReturned":
+      return `${formatUsdc(args.amount as bigint)} USDC came home from the remote vault via CCTP`;
+    default:
+      return eventName;
+  }
+}
+
 function useTreasuryActivity() {
-  const client = usePublicClient();
-  const chainId = useChainId();
+  const client = usePublicClient({ chainId: arcTestnet.id });
   return useQuery({
-    queryKey: ["treasury-activity", chainId],
+    queryKey: ["treasury-activity", arcTestnet.id],
     enabled: Boolean(client && TREASURY_ADDRESS),
     refetchInterval: 6_000,
     queryFn: async (): Promise<ActivityEntry[]> => {
-      const entries: ActivityEntry[] = [];
-      for (const event of activityEvents) {
+      const latest = await client!.getBlockNumber();
+      let from = activityCache.scannedTo + 1n;
+      while (from <= latest) {
+        const to = from + 9_998n > latest ? latest : from + 9_998n;
         const logs = await client!.getLogs({
           address: TREASURY_ADDRESS!,
-          event,
-          fromBlock: 0n,
-          toBlock: "latest",
+          events: activityEvents,
+          fromBlock: from,
+          toBlock: to,
         });
         for (const log of logs) {
-          const args = log.args as Record<string, unknown>;
-          let text = "";
-          switch (event.name) {
-            case "Swept":
-              text = `Swept ${formatUsdc(args.amount as bigint)} USDC of idle escrow in from Sluice`;
-              break;
-            case "Recalled":
-              text = `Recalled ${formatUsdc(args.amount as bigint)} USDC back to Sluice for a withdrawal`;
-              break;
-            case "Rebalanced":
-              text = `Rebalanced — allocated [${(args.allocations as bigint[])
-                .map((allocation) => formatUsdc(allocation))
-                .join(" · ")}] USDC across venues`;
-              break;
-            case "RemoteReturnRequested":
-              text = `Requested return from the ${domainLabel(Number(args.domain))} vault (relayer executing)`;
-              break;
-            case "RemoteReturned":
-              text = `${formatUsdc(args.amount as bigint)} USDC came home from the remote vault via CCTP`;
-              break;
-          }
-          entries.push({ block: log.blockNumber ?? 0n, text });
+          activityCache.entries.push({
+            block: log.blockNumber ?? 0n,
+            text: describeActivity(log.eventName, log.args as Record<string, unknown>),
+          });
         }
+        activityCache.scannedTo = to;
+        from = to + 1n;
       }
-      return entries.sort((a, b) => (a.block > b.block ? -1 : 1)).slice(0, 30);
+      return [...activityCache.entries].sort((a, b) => (a.block > b.block ? -1 : 1)).slice(0, 30);
     },
   });
 }

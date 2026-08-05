@@ -2,12 +2,14 @@
 /**
  * Sluice CCTP v2 attestation relayer — real Circle infrastructure, no mocks.
  *
- * Watches Circle's TokenMessengerV2 on Arc Testnet and Base Sepolia for burns
- * that involve Sluice contracts, polls Circle's Iris attestation API until the
- * message is attested, delivers the mint via MessageTransmitterV2.receiveMessage,
- * and then executes the Sluice hook (fund stream / buy stream / treasury deposit
- * or return) as the authorized relayer. Also watches the Arc treasury for
- * RemoteReturnRequested and triggers the Base Sepolia vault's exitToArc.
+ * Discovery: watches Circle's TokenMessengerV2 on Arc Testnet and Base Sepolia
+ * for burns involving Sluice contracts and enqueues them durably.
+ * Processing: per-message state machine with independent steps and bounded
+ * retries — no head-of-line blocking, transient failures never abandon funds:
+ *   pending → delivered (MessageTransmitterV2.receiveMessage after Iris attests)
+ *           → done      (hook executed on the recipient, if the burn carried one)
+ * A message is only poisoned after MAX_ATTEMPTS distinct failures, loudly.
+ * Also retries RemoteReturnRequested → vault.exitToArc until it succeeds.
  *
  * Usage: node web/scripts/cctp-relayer.mjs   (reads PRIVATE_KEY from ./.env)
  */
@@ -29,6 +31,7 @@ const IRIS = "https://iris-api-sandbox.circle.com";
 const TOKEN_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA";
 const MESSAGE_TRANSMITTER = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275";
 const STATE_FILE = join(root, "web/scripts/.cctp-relayer-state.json");
+const MAX_ATTEMPTS = 6;
 
 const messengerAbi = parseAbi([
   "event DepositForBurn(address indexed burnToken, uint256 amount, address indexed depositor, bytes32 mintRecipient, uint32 destinationDomain, bytes32 destinationTokenMessenger, bytes32 destinationCaller, uint256 maxFee, uint32 indexed minFinalityThreshold, bytes hookData)",
@@ -36,7 +39,7 @@ const messengerAbi = parseAbi([
 const transmitterAbi = parseAbi(["function receiveMessage(bytes message, bytes attestation)"]);
 const hookAbi = parseAbi(["function onCCTPHook(uint32 sourceDomain, uint256 amount, bytes hookData)"]);
 const treasuryEvents = parseAbi(["event RemoteReturnRequested(address indexed vault, uint32 indexed domain)"]);
-const vaultAbi = parseAbi(["function exitToArc() returns (uint256)"]);
+const vaultAbi = parseAbi(["function exitToArc() returns (uint256)", "function principal() view returns (uint256)"]);
 const erc20Transfer = parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]);
 
 const arcChain = defineChain({
@@ -52,12 +55,12 @@ const baseChain = defineChain({
 
 const sides = {
   arc: {
-    chain: arcChain, domain: 26, usdc: "0x3600000000000000000000000000000000000000",
+    key: "arc", chain: arcChain, domain: 26, usdc: "0x3600000000000000000000000000000000000000",
     hookReceivers: new Set([depArc.gate?.toLowerCase(), depArc.treasury?.toLowerCase()].filter(Boolean)),
     ourDepositors: new Set([depArc.gate?.toLowerCase(), depArc.remoteAdapter?.toLowerCase()].filter(Boolean)),
   },
   base: {
-    chain: baseChain, domain: 6, usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    key: "base", chain: baseChain, domain: 6, usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     hookReceivers: new Set([depBase.remoteVault?.toLowerCase()].filter(Boolean)),
     ourDepositors: new Set([depBase.remoteVault?.toLowerCase()].filter(Boolean)),
   },
@@ -66,10 +69,14 @@ for (const side of Object.values(sides)) {
   side.pub = createPublicClient({ chain: side.chain, transport: http() });
   side.wallet = createWalletClient({ account, chain: side.chain, transport: http() });
 }
+const byDomain = { 26: sides.arc, 6: sides.base };
 
 const state = existsSync(STATE_FILE)
   ? JSON.parse(readFileSync(STATE_FILE, "utf8"))
-  : { processed: {}, lastBlock: {}, requestedReturns: {} };
+  : { messages: {}, lastBlock: {}, returns: {} };
+state.messages ??= {};
+state.returns ??= {};
+state.lastBlock ??= {};
 const saveState = () => writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 
 const fmt = (amount) => `${(Number(amount) / 1e6).toFixed(4)} USDC`;
@@ -85,123 +92,196 @@ async function fetchAttestation(sourceDomain, txHash) {
   return message;
 }
 
-async function deliver(src, dst, burn, txHash) {
-  const attested = await fetchAttestation(src.domain, txHash);
-  if (!attested) return false; // not attested yet — retry next poll
+// ------------------------------------------------------------------ discovery
 
-  const hash = await dst.wallet.writeContract({
-    address: MESSAGE_TRANSMITTER,
-    abi: transmitterAbi,
-    functionName: "receiveMessage",
-    args: [attested.message, attested.attestation],
-  });
-  const receipt = await dst.pub.waitForTransactionReceipt({ hash });
-  if (receipt.status !== "success") throw new Error(`receiveMessage reverted (${hash})`);
-
-  // Exact minted amount = the USDC Transfer from the zero address in the receipt
-  // (net of any fast-transfer fee Circle collected).
-  const recipient = bytes32ToAddress(burn.mintRecipient);
-  let minted = 0n;
-  for (const logEntry of receipt.logs) {
-    if (logEntry.address.toLowerCase() !== dst.usdc.toLowerCase()) continue;
-    try {
-      const parsed = decodeEventLog({ abi: erc20Transfer, data: logEntry.data, topics: logEntry.topics });
-      if (
-        parsed.args.from === "0x0000000000000000000000000000000000000000" &&
-        parsed.args.to.toLowerCase() === recipient
-      ) {
-        minted = parsed.args.value;
-      }
-    } catch {}
-  }
-  log(`${src.chain.name} → ${dst.chain.name}: delivered ${fmt(minted)} to ${recipient}`);
-
-  if (burn.hookData && burn.hookData !== "0x" && dst.hookReceivers.has(recipient)) {
-    const hookHash = await dst.wallet.writeContract({
-      address: recipient,
-      abi: hookAbi,
-      functionName: "onCCTPHook",
-      args: [src.domain, minted, burn.hookData],
-    });
-    const hookReceipt = await dst.pub.waitForTransactionReceipt({ hash: hookHash });
-    log(`  hook ${hookReceipt.status === "success" ? "executed" : "REVERTED"} on ${recipient} (${hookHash})`);
-  }
-  return true;
-}
-
-async function scanBurns(key, src, dst) {
+async function discoverBurns(src) {
+  const dstDomains = Object.keys(byDomain).map(Number).filter((d) => d !== src.domain);
   const latest = await src.pub.getBlockNumber();
-  const from = state.lastBlock[key] ? BigInt(state.lastBlock[key]) + 1n : latest - 500n;
-  if (from > latest) return;
-  // Chunk to respect getLogs range caps.
-  for (let start = from; start <= latest; start += 9_999n) {
-    const end = start + 9_998n > latest ? latest : start + 9_998n;
+  const cursorKey = `burns:${src.key}`;
+  let from = state.lastBlock[cursorKey] ? BigInt(state.lastBlock[cursorKey]) + 1n : latest - 500n;
+  if (from < 0n) from = 0n;
+  while (from <= latest) {
+    const to = from + 9_998n > latest ? latest : from + 9_998n;
     const logs = await src.pub.getContractEvents({
       address: TOKEN_MESSENGER, abi: messengerAbi, eventName: "DepositForBurn",
-      fromBlock: start, toBlock: end,
+      fromBlock: from, toBlock: to,
     });
     for (const eventLog of logs) {
       const burn = eventLog.args;
-      if (Number(burn.destinationDomain) !== dst.domain) continue;
+      const dst = byDomain[Number(burn.destinationDomain)];
+      if (!dst) continue;
       const recipient = bytes32ToAddress(burn.mintRecipient);
       const ours =
         src.ourDepositors.has(burn.depositor.toLowerCase()) ||
         dst.hookReceivers.has(recipient) ||
         src.hookReceivers.has(burn.depositor.toLowerCase());
       if (!ours) continue;
-      const id = `${key}:${eventLog.transactionHash}:${eventLog.logIndex}`;
-      if (state.processed[id]) continue;
-      try {
-        const done = await deliver(src, dst, burn, eventLog.transactionHash);
-        if (done) {
-          state.processed[id] = true;
-        } else {
-          log(`awaiting attestation for ${eventLog.transactionHash.slice(0, 18)}… (${fmt(burn.amount)})`);
-          state.lastBlock[key] = String(start - 1n > 0n ? start - 1n : 0n); // re-scan this range next poll
-          saveState();
-          return;
-        }
-      } catch (error) {
-        log(`FAILED delivery ${eventLog.transactionHash.slice(0, 18)}…: ${error.shortMessage ?? error.message}`);
-        state.processed[id] = true; // don't wedge the pipeline on a poison message
+      const id = `${src.key}:${eventLog.transactionHash}:${eventLog.logIndex}`;
+      if (!state.messages[id]) {
+        state.messages[id] = {
+          srcKey: src.key,
+          dstKey: dst.key,
+          txHash: eventLog.transactionHash,
+          recipient,
+          burnAmount: burn.amount.toString(),
+          maxFee: burn.maxFee.toString(),
+          hookData: burn.hookData,
+          status: "pending", // pending -> delivered -> done | poison
+          minted: null,
+          attempts: 0,
+          note: "",
+        };
+        log(`queued ${id.slice(0, 40)}… ${fmt(burn.amount)} → ${dst.chain.name} (${recipient.slice(0, 10)}…)`);
       }
     }
-    state.lastBlock[key] = String(end);
+    state.lastBlock[cursorKey] = String(to); // always advances — queue holds the work
     saveState();
+    from = to + 1n;
   }
 }
 
-async function scanReturnRequests() {
-  const arc = sides.arc;
+// ----------------------------------------------------------------- processing
+
+function poisonIfExhausted(id, msg, error) {
+  msg.attempts += 1;
+  msg.note = String(error?.shortMessage ?? error?.message ?? error).slice(0, 200);
+  if (msg.attempts >= MAX_ATTEMPTS) {
+    msg.status = "poison";
+    log(`POISONED ${id} after ${MAX_ATTEMPTS} attempts — MANUAL ACTION NEEDED: ${msg.note}`);
+  } else {
+    log(`retry ${msg.attempts}/${MAX_ATTEMPTS} for ${id.slice(0, 40)}…: ${msg.note}`);
+  }
+}
+
+async function processMessage(id, msg) {
+  const src = sides[msg.srcKey];
+  const dst = sides[msg.dstKey];
+
+  if (msg.status === "pending") {
+    const attested = await fetchAttestation(src.domain, msg.txHash);
+    if (!attested) return; // not attested yet — not a failure, no attempt burned
+    try {
+      const hash = await dst.wallet.writeContract({
+        address: MESSAGE_TRANSMITTER, abi: transmitterAbi, functionName: "receiveMessage",
+        args: [attested.message, attested.attestation],
+      });
+      const receipt = await dst.pub.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error(`receiveMessage reverted (${hash})`);
+      let minted = 0n;
+      for (const logEntry of receipt.logs) {
+        if (logEntry.address.toLowerCase() !== dst.usdc.toLowerCase()) continue;
+        try {
+          const parsed = decodeEventLog({ abi: erc20Transfer, data: logEntry.data, topics: logEntry.topics });
+          if (
+            parsed.args.from === "0x0000000000000000000000000000000000000000" &&
+            parsed.args.to.toLowerCase() === msg.recipient
+          ) {
+            minted = parsed.args.value;
+          }
+        } catch {}
+      }
+      msg.minted = minted.toString();
+      msg.status = "delivered";
+      msg.attempts = 0;
+      log(`${src.chain.name} → ${dst.chain.name}: delivered ${fmt(minted)} to ${msg.recipient}`);
+    } catch (error) {
+      const text = String(error?.shortMessage ?? error?.message ?? "");
+      if (/nonce.*(already|used)/i.test(text)) {
+        // An earlier attempt (only we can deliver — destinationCaller is locked)
+        // already landed; fall back to a conservative minted lower bound.
+        msg.minted = (BigInt(msg.burnAmount) - BigInt(msg.maxFee)).toString();
+        msg.status = "delivered";
+        msg.attempts = 0;
+        log(`already delivered on-chain: ${id.slice(0, 40)}… (using conservative minted bound)`);
+      } else {
+        poisonIfExhausted(id, msg, error);
+        return;
+      }
+    }
+  }
+
+  if (msg.status === "delivered") {
+    const hasHook = msg.hookData && msg.hookData !== "0x" && dst.hookReceivers.has(msg.recipient);
+    if (!hasHook) {
+      msg.status = "done";
+      return;
+    }
+    try {
+      const hash = await dst.wallet.writeContract({
+        address: msg.recipient, abi: hookAbi, functionName: "onCCTPHook",
+        args: [src.domain, BigInt(msg.minted), msg.hookData],
+      });
+      const receipt = await dst.pub.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error(`hook reverted (${hash})`);
+      msg.status = "done";
+      log(`  hook executed on ${msg.recipient} (${hash})`);
+    } catch (error) {
+      poisonIfExhausted(id, msg, error);
+    }
+  }
+}
+
+// --------------------------------------------------------------- vault exits
+
+async function discoverReturnRequests() {
   if (!depArc.treasury || !depBase.remoteVault) return;
+  const arc = sides.arc;
   const latest = await arc.pub.getBlockNumber();
-  const key = "returnRequests";
-  const from = state.lastBlock[key] ? BigInt(state.lastBlock[key]) + 1n : latest - 500n;
-  if (from > latest) return;
-  for (let start = from; start <= latest; start += 9_999n) {
-    const end = start + 9_998n > latest ? latest : start + 9_998n;
+  const cursorKey = "returns:arc";
+  let from = state.lastBlock[cursorKey] ? BigInt(state.lastBlock[cursorKey]) + 1n : latest - 500n;
+  if (from < 0n) from = 0n;
+  while (from <= latest) {
+    const to = from + 9_998n > latest ? latest : from + 9_998n;
     const logs = await arc.pub.getContractEvents({
       address: depArc.treasury, abi: treasuryEvents, eventName: "RemoteReturnRequested",
-      fromBlock: start, toBlock: end,
+      fromBlock: from, toBlock: to,
     });
     for (const eventLog of logs) {
       const id = `ret:${eventLog.transactionHash}:${eventLog.logIndex}`;
-      if (state.requestedReturns[id]) continue;
-      try {
-        const hash = await sides.base.wallet.writeContract({
-          address: eventLog.args.vault, abi: vaultAbi, functionName: "exitToArc",
-        });
-        await sides.base.pub.waitForTransactionReceipt({ hash });
-        log(`Base Sepolia vault exitToArc triggered (${hash})`);
-      } catch (error) {
-        log(`exitToArc failed: ${error.shortMessage ?? error.message}`);
+      if (!state.returns[id]) {
+        state.returns[id] = { vault: eventLog.args.vault, status: "pending", attempts: 0 };
+        log(`queued vault exit request ${id.slice(0, 30)}…`);
       }
-      state.requestedReturns[id] = true;
     }
-    state.lastBlock[key] = String(end);
+    state.lastBlock[cursorKey] = String(to);
     saveState();
+    from = to + 1n;
   }
 }
+
+async function processReturns() {
+  for (const [id, req] of Object.entries(state.returns)) {
+    if (req.status !== "pending") continue;
+    try {
+      // An empty vault means an earlier exit already burned everything home.
+      const principal = await sides.base.pub.readContract({
+        address: req.vault, abi: vaultAbi, functionName: "principal",
+      });
+      if (principal === 0n) {
+        req.status = "done";
+        log(`vault already empty — exit request ${id.slice(0, 30)}… complete`);
+        continue;
+      }
+      const hash = await sides.base.wallet.writeContract({
+        address: req.vault, abi: vaultAbi, functionName: "exitToArc",
+      });
+      const receipt = await sides.base.pub.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error(`exitToArc reverted (${hash})`);
+      req.status = "done";
+      log(`Base Sepolia vault exitToArc executed (${hash})`);
+    } catch (error) {
+      req.attempts += 1;
+      if (req.attempts >= MAX_ATTEMPTS) {
+        req.status = "poison";
+        log(`POISONED exit request ${id} — MANUAL ACTION NEEDED: ${error?.shortMessage ?? error?.message}`);
+      } else {
+        log(`exitToArc retry ${req.attempts}/${MAX_ATTEMPTS}: ${error?.shortMessage ?? error?.message}`);
+      }
+    }
+  }
+}
+
+// --------------------------------------------------------------------- main
 
 log(`relayer ${account.address}`);
 log(`Arc gate=${depArc.gate ?? "?"} treasury=${depArc.treasury ?? "?"} | Base vault=${depBase.remoteVault ?? "?"}`);
@@ -211,11 +291,17 @@ setInterval(async () => {
   if (busy) return;
   busy = true;
   try {
-    await scanBurns("arc→base", sides.arc, sides.base);
-    await scanBurns("base→arc", sides.base, sides.arc);
-    await scanReturnRequests();
+    await discoverBurns(sides.arc);
+    await discoverBurns(sides.base);
+    await discoverReturnRequests();
+    for (const [id, msg] of Object.entries(state.messages)) {
+      if (msg.status === "done" || msg.status === "poison") continue;
+      await processMessage(id, msg);
+    }
+    await processReturns();
+    saveState();
   } catch (error) {
-    log(`poll error: ${error.shortMessage ?? error.message}`);
+    log(`poll error: ${error?.shortMessage ?? error?.message ?? error}`);
   } finally {
     busy = false;
   }

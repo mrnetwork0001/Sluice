@@ -44,6 +44,7 @@ contract AddRemoteAdapter is Script {
         vm.serializeAddress(json, "treasury", address(treasury));
         vm.serializeAddress(json, "localAdapter", vm.envAddress("LOCAL_ADAPTER"));
         vm.serializeAddress(json, "relayer", vm.addr(key));
+        vm.serializeUint(json, "treasuryFromBlock", vm.envUint("TREASURY_FROM_BLOCK"));
         string memory out = vm.serializeAddress(json, "remoteAdapter", address(remoteAdapter));
         vm.writeJson(out, "./web/src/lib/deployments.5042002.json");
 
