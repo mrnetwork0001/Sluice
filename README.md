@@ -250,6 +250,15 @@ insurance pool all run against native USDC:
 | Explorer | `https://testnet.arcscan.app` |
 | USDC (native gas) | `0x3600000000000000000000000000000000000000` |
 
+**Auto-triggers are real swaps too.** Withdrawal rules route a slice of each
+paycheck through Circle Swap Kit on Arc — live quotes come from Circle's routing
+service and the conversion is an on-chain transaction
+([example: 0.20 USDC → 0.15503 EURC](https://testnet.arcscan.app/tx/0xce142d92140cc758c0df8d170010628c50f9991045a7cb3bb9118abaa4de495f)).
+EURC on Arc is `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`. Because Swap Kit's
+API blocks cross-origin browser calls, quote/route requests are forwarded by a
+server-side proxy (`web/src/app/api/circle/[...path]/route.ts`) — the swap itself
+is still signed and broadcast by the user's wallet.
+
 **Cross-chain runs on real Circle CCTP v2 — nothing is mocked.** Burns go through
 the canonical `TokenMessengerV2`
 (`0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`, Arc domain 26 ↔ Base Sepolia

@@ -6,9 +6,11 @@ import {
   AUTO_TOKENS,
   loadRules,
   loadTriggerLog,
+  quoteSwap,
   saveRules,
   type AutoRule,
   type AutoToken,
+  type SwapQuote,
   type TriggerLogEntry,
 } from "@/lib/automation";
 import { Badge, Button, Card, CardTitle, EmptyState, Field, PageHeader, inputClass } from "@/components/ui";
@@ -19,6 +21,8 @@ export default function AutomationPage() {
   const [log, setLog] = useState<TriggerLogEntry[]>([]);
   const [pct, setPct] = useState("20");
   const [tokenOut, setTokenOut] = useState<AutoToken>("EURC");
+  const [quote, setQuote] = useState<SwapQuote | undefined>();
+  const [quoteError, setQuoteError] = useState<string>();
 
   useEffect(() => {
     if (!address) return;
@@ -32,6 +36,21 @@ export default function AutomationPage() {
     const timer = setInterval(() => setLog(loadTriggerLog(address)), 3_000);
     return () => clearInterval(timer);
   }, [address]);
+
+  // Live Swap Kit quote for a reference 1 USDC slice, so the rate is visible
+  // before any paycheck is routed.
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    setQuote(undefined);
+    setQuoteError(undefined);
+    quoteSwap("1.00", tokenOut)
+      .then((result) => !cancelled && setQuote(result))
+      .catch((error) => !cancelled && setQuoteError(error instanceof Error ? error.message : String(error)));
+    return () => {
+      cancelled = true;
+    };
+  }, [address, tokenOut]);
 
   if (!isConnected || !address) {
     return (
@@ -104,6 +123,27 @@ export default function AutomationPage() {
             </span>
           </div>
 
+          <div className="mt-4 rounded-xl border border-cyan-400/15 bg-cyan-400/5 px-3.5 py-2.5 text-xs">
+            {quote ? (
+              <>
+                <span className="text-zinc-400">Live Swap Kit rate — </span>
+                <span className="font-mono text-cyan-300">1.00 USDC</span>
+                <span className="text-zinc-400"> → </span>
+                <span className="font-mono text-emerald-300">
+                  {quote.estimatedOutput} {quote.tokenOut}
+                </span>
+                <span className="text-zinc-500">
+                  {" "}· min {quote.minimumOutput} after slippage
+                  {quote.gasFee ? ` · ~${quote.gasFee} USDC gas` : ""}
+                </span>
+              </>
+            ) : quoteError ? (
+              <span className="text-amber-300">Quote unavailable: {quoteError.slice(0, 120)}</span>
+            ) : (
+              <span className="text-zinc-500">Fetching live {tokenOut} rate from Circle…</span>
+            )}
+          </div>
+
           <div className="mt-5 space-y-2">
             {rules.length === 0 ? (
               <p className="text-sm text-zinc-500">No rules yet.</p>
@@ -166,7 +206,8 @@ export default function AutomationPage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-zinc-200">
-                      {entry.amountIn} USDC → {entry.tokenOut}
+                      {entry.amountIn} USDC → {entry.amountOut ? `${entry.amountOut} ` : ""}
+                      {entry.tokenOut}
                       <span className="ml-2 text-xs text-zinc-500">
                         stream #{entry.streamId} · {entry.pct}%
                       </span>
@@ -175,8 +216,8 @@ export default function AutomationPage() {
                       tone={
                         entry.status === "executed"
                           ? "emerald"
-                          : entry.status === "simulated"
-                            ? "cyan"
+                          : entry.status === "skipped"
+                            ? "zinc"
                             : "red"
                       }
                     >
@@ -185,6 +226,19 @@ export default function AutomationPage() {
                   </div>
                   <div className="mt-1 text-xs text-zinc-500">
                     {new Date(entry.at).toLocaleString()} — {entry.detail}
+                    {entry.explorerUrl ? (
+                      <>
+                        {" "}
+                        <a
+                          href={entry.explorerUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-cyan-400 hover:text-cyan-300"
+                        >
+                          view tx ↗
+                        </a>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -196,13 +250,14 @@ export default function AutomationPage() {
       <Card className="mt-4">
         <CardTitle>How it works</CardTitle>
         <p className="text-sm leading-relaxed text-zinc-400">
-          Rules are stored per wallet and evaluated client-side after every successful{" "}
+          Rules are stored per wallet and evaluated after every successful{" "}
           <span className="font-mono text-zinc-300">withdrawFromStream</span>. Each rule slices the
-          net (post-tax) payout and converts it with{" "}
-          <span className="text-cyan-300">Circle Swap Kit</span> through your connected wallet. On
-          chains Swap Kit supports (Base, Ethereum, Arbitrum…) the swap executes on-chain; on Arc
-          Testnet and local anvil the kit has no route yet, so Sluice records a simulated execution
-          — same code path, visible end-to-end.
+          net (post-tax) payout and swaps it through{" "}
+          <span className="text-cyan-300">Circle Swap Kit</span> on Arc Testnet using your connected
+          wallet — a real on-chain conversion routed by Circle, with the transaction linked above.
+          EURC on Arc lives at{" "}
+          <span className="font-mono text-zinc-300">0x89B5…D72a</span>; gas is paid in USDC like
+          everything else on Arc, so small slices can cost more in gas than they convert.
         </p>
       </Card>
     </div>
