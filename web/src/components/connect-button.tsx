@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { arcTestnet } from "@/lib/arc";
+import { CHAIN_LABELS } from "@/lib/wagmi";
 import { useUsdcBalance } from "@/lib/hooks";
 import { formatUsdc, shortAddr } from "@/lib/format";
 
@@ -28,8 +29,9 @@ export function ConnectButton() {
   }
 
   // Connected on the wrong chain: one click switches — the wallet is prompted to
-  // add Arc Testnet automatically if it doesn't know the chain yet.
-  if (chainId !== arcTestnet.id) {
+  // add Arc Testnet automatically if it doesn't know the chain yet. Base Sepolia
+  // is tolerated transiently while a CCTP burn is in flight.
+  if (chainId !== arcTestnet.id && chainId !== 84532) {
     return (
       <button
         onClick={() => switchChainAsync({ chainId: arcTestnet.id }).catch(() => {})}
@@ -52,7 +54,7 @@ export function ConnectButton() {
         </span>
         <span className="font-mono text-zinc-200">{shortAddr(address)}</span>
         <span className="rounded-full bg-cyan-400/10 px-2 py-0.5 text-[11px] font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/25">
-          Arc Testnet
+          {CHAIN_LABELS[chainId] ?? `Chain ${chainId}`}
         </span>
       </button>
       {menuOpen ? (

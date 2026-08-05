@@ -1,25 +1,29 @@
 import { encodeAbiParameters } from "viem";
-import depA from "./deployments.31337.json";
-import depB from "./deployments.31338.json";
+import { arcTestnet } from "./arc";
+import depArc from "./deployments.5042002.json";
+import depBase from "./deployments.84532.json";
 
 /**
- * Cross-chain development topology: two local anvils playing Arc (CCTP domain
- * 26) and Base (domain 6), joined by the mock CCTP messengers + the relayer
- * (`./dev.sh`). The production app targets Arc Testnet only, so these flows are
- * hidden in the UI until the Bridge Kit / real-CCTP integration lands.
+ * Real cross-chain topology over Circle CCTP v2: Arc Testnet (domain 26) and
+ * Base Sepolia (domain 6), joined by the canonical TokenMessengerV2 and the
+ * Sluice attestation relayer (web/scripts/cctp-relayer.mjs). Nothing mocked —
+ * burns are real, attestations come from Circle's Iris API, mints are real USDC.
  */
 
 export const ARC_DOMAIN = 26;
 export const BASE_DOMAIN = 6;
+export const BASE_SEPOLIA_CHAIN_ID = 84532;
 
-const LOCAL_ARC_CHAIN_ID = 31337;
-const LOCAL_BASE_CHAIN_ID = 31338;
+/** Canonical CCTP v2 TokenMessenger (same address on Arc Testnet + Base Sepolia). */
+export const TOKEN_MESSENGER_V2 = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as const;
 
-export const CROSSCHAIN_DEMO_CHAIN_ID = LOCAL_ARC_CHAIN_ID;
+/** CCTP v2 finality thresholds: fast (fee ≤ maxFee) vs standard (free). */
+export const FINALITY_FAST = 1000;
+export const FINALITY_STANDARD = 2000;
 
-export function crossChainEnabled(chainId: number): boolean {
-  return chainId === CROSSCHAIN_DEMO_CHAIN_ID;
-}
+const ZERO = "0x0000000000000000000000000000000000000000";
+const defined = (value: string | undefined): `0x${string}` | undefined =>
+  value && value !== ZERO ? (value as `0x${string}`) : undefined;
 
 export interface ChainSide {
   chainId: number;
@@ -30,25 +34,54 @@ export interface ChainSide {
 }
 
 export const ARC_SIDE: ChainSide = {
-  chainId: LOCAL_ARC_CHAIN_ID,
+  chainId: arcTestnet.id,
   domain: ARC_DOMAIN,
-  label: "Arc (local)",
-  usdc: depA.usdc as `0x${string}`,
-  messenger: depA.messenger as `0x${string}`,
+  label: "Arc Testnet",
+  usdc: "0x3600000000000000000000000000000000000000",
+  messenger: TOKEN_MESSENGER_V2,
 };
 
 export const BASE_SIDE: ChainSide = {
-  chainId: LOCAL_BASE_CHAIN_ID,
+  chainId: BASE_SEPOLIA_CHAIN_ID,
   domain: BASE_DOMAIN,
-  label: "Base (local)",
-  usdc: depB.usdc as `0x${string}`,
-  messenger: depB.messenger as `0x${string}`,
+  label: "Base Sepolia",
+  usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  messenger: TOKEN_MESSENGER_V2,
 };
 
-export const GATE_ADDRESS = depA.gate as `0x${string}`;
-export const TREASURY_ADDRESS = depA.treasury as `0x${string}`;
-export const REMOTE_VAULT_ADDRESS = depB.remoteVault as `0x${string}`;
+export const GATE_ADDRESS = defined((depArc as unknown as Record<string, string | undefined>).gate);
+export const TREASURY_ADDRESS = defined((depArc as unknown as Record<string, string | undefined>).treasury);
+export const REMOTE_VAULT_ADDRESS = defined((depBase as unknown as Record<string, string | undefined>).remoteVault);
+export const RELAYER_ADDRESS = defined((depArc as unknown as Record<string, string | undefined>).relayer);
 
+/** Cross-chain UI is live on Arc Testnet once the gate is deployed and wired. */
+export function crossChainEnabled(chainId: number): boolean {
+  return chainId === arcTestnet.id && GATE_ADDRESS !== undefined;
+}
+
+/** Left-pad an EVM address into CCTP's bytes32 representation. */
+export function addressToBytes32(address: `0x${string}`): `0x${string}` {
+  return `0x${address.slice(2).padStart(64, "0")}` as `0x${string}`;
+}
+
+export const ZERO_BYTES32 =
+  "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+
+/**
+ * destinationCaller for hooked burns: locked to the Sluice relayer so nobody can
+ * deliver the mint without also executing the hook.
+ */
+export function hookDestinationCaller(): `0x${string}` {
+  return RELAYER_ADDRESS ? addressToBytes32(RELAYER_ADDRESS) : ZERO_BYTES32;
+}
+
+/** Fast-transfer fee cap for user burns leaving Base Sepolia: 0.1%. */
+export function fastMaxFee(amount: bigint): bigint {
+  const fee = amount / 1_000n;
+  return fee > 0n ? fee : 1n;
+}
+
+/** CCTP v2 TokenMessenger ABI (from the verified implementation). */
 export const messengerAbi = [
   {
     type: "function",
@@ -57,9 +90,13 @@ export const messengerAbi = [
     inputs: [
       { name: "amount", type: "uint256" },
       { name: "destinationDomain", type: "uint32" },
-      { name: "mintRecipient", type: "address" },
+      { name: "mintRecipient", type: "bytes32" },
+      { name: "burnToken", type: "address" },
+      { name: "destinationCaller", type: "bytes32" },
+      { name: "maxFee", type: "uint256" },
+      { name: "minFinalityThreshold", type: "uint32" },
     ],
-    outputs: [{ type: "uint64" }],
+    outputs: [],
   },
   {
     type: "function",
@@ -68,10 +105,14 @@ export const messengerAbi = [
     inputs: [
       { name: "amount", type: "uint256" },
       { name: "destinationDomain", type: "uint32" },
-      { name: "mintRecipient", type: "address" },
+      { name: "mintRecipient", type: "bytes32" },
+      { name: "burnToken", type: "address" },
+      { name: "destinationCaller", type: "bytes32" },
+      { name: "maxFee", type: "uint256" },
+      { name: "minFinalityThreshold", type: "uint32" },
       { name: "hookData", type: "bytes" },
     ],
-    outputs: [{ type: "uint64" }],
+    outputs: [],
   },
 ] as const;
 
@@ -111,6 +152,6 @@ export function encodeBuyStreamHook(buyer: `0x${string}`, streamId: bigint): `0x
 /** Human label for a CCTP domain id. */
 export function domainLabel(domain: number): string {
   if (domain === ARC_DOMAIN) return "Arc";
-  if (domain === BASE_DOMAIN) return "Base";
+  if (domain === BASE_DOMAIN) return "Base Sepolia";
   return `Domain ${domain}`;
 }

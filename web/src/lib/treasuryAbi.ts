@@ -8,9 +8,9 @@ export const treasuryAbi = [
         "internalType": "contract Sluice"
       },
       {
-        "name": "messenger_",
+        "name": "relayer_",
         "type": "address",
-        "internalType": "contract MockCCTPMessenger"
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -126,19 +126,6 @@ export const treasuryAbi = [
   },
   {
     "type": "function",
-    "name": "messenger",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract MockCCTPMessenger"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "notifyDeposit",
     "inputs": [
       {
@@ -158,11 +145,6 @@ export const treasuryAbi = [
         "name": "",
         "type": "uint32",
         "internalType": "uint32"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       },
       {
         "name": "amount",
@@ -210,6 +192,19 @@ export const treasuryAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "relayer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -277,7 +272,7 @@ export const treasuryAbi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract MockUSDC"
+        "internalType": "contract IERC20"
       }
     ],
     "stateMutability": "view"

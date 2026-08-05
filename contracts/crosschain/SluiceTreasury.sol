@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Sluice} from "../Sluice.sol";
-import {MockUSDC} from "../mocks/MockUSDC.sol";
-import {MockCCTPMessenger, ICCTPHookReceiver} from "./MockCCTPMessenger.sol";
+import {Sluice, IERC20} from "../Sluice.sol";
+import {ICCTPHookReceiver} from "./CCTPInterfaces.sol";
 import {SluiceHooks} from "./SluiceGate.sol";
 import {IYieldAdapter, CCTPRemoteAdapter} from "./YieldAdapters.sol";
 
 /// @title SluiceTreasury — cross-chain auto-yield routing for idle payroll escrow
-/// @notice Receives idle escrow swept from Sluice, allocates it across yield adapters
-///         (local money market + CCTP-bridged remote vaults) per target weights, and
-///         returns liquidity on demand when Sluice's withdrawal buffer runs low.
+/// @notice Receives idle escrow swept from Sluice, allocates it across yield
+///         venues (an on-chain reserve vault on Arc + CCTP-bridged remote vaults),
+///         and returns liquidity on demand when Sluice's withdrawal buffer runs
+///         low. Remote positions come home via hooked CCTP mints delivered by the
+///         attestation relayer.
 contract SluiceTreasury is ICCTPHookReceiver {
     Sluice public immutable sluice;
-    MockUSDC public immutable usdc;
-    MockCCTPMessenger public immutable messenger;
+    IERC20 public immutable usdc;
     address public immutable deployer;
+    /// @notice Attestation relayer authorized to execute inbound return hooks.
+    address public immutable relayer;
 
     IYieldAdapter[] public adapters;
     uint256[] public targetBps;
@@ -34,11 +36,12 @@ contract SluiceTreasury is ICCTPHookReceiver {
         _;
     }
 
-    constructor(Sluice sluice_, MockCCTPMessenger messenger_) {
+    constructor(Sluice sluice_, address relayer_) {
+        require(relayer_ != address(0), "Treasury: relayer zero");
         sluice = sluice_;
-        messenger = messenger_;
-        usdc = MockUSDC(address(sluice_.usdc()));
+        usdc = sluice_.usdc();
         deployer = msg.sender;
+        relayer = relayer_;
     }
 
     /// @notice Deploy-time wiring of yield venues and their target weights.
@@ -149,9 +152,11 @@ contract SluiceTreasury is ICCTPHookReceiver {
         emit RemoteReturnRequested(CCTPRemoteAdapter(address(adapter)).remoteVault(), adapter.chainDomain());
     }
 
-    /// @notice CCTP mint handler for funds coming back from remote vaults.
-    function onCCTPHook(uint32, address, uint256 amount, bytes calldata hookData) external {
-        require(msg.sender == address(messenger), "Treasury: only messenger");
+    /// @notice Inbound hook for funds coming back from remote vaults, executed by
+    ///         the attestation relayer after the CCTP mint lands.
+    function onCCTPHook(uint32, uint256 amount, bytes calldata hookData) external {
+        require(msg.sender == relayer, "Treasury: only relayer");
+        require(usdc.balanceOf(address(this)) >= amount, "Treasury: funds not arrived");
         (uint8 action,) = abi.decode(hookData, (uint8, bytes));
         require(action == SluiceHooks.REMOTE_RETURN, "Treasury: unknown action");
         for (uint256 i = 0; i < adapters.length; i++) {

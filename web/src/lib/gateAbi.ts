@@ -8,25 +8,17 @@ export const gateAbi = [
         "internalType": "contract Sluice"
       },
       {
-        "name": "messenger_",
+        "name": "tokenMessenger_",
         "type": "address",
-        "internalType": "contract MockCCTPMessenger"
+        "internalType": "contract ITokenMessengerV2"
+      },
+      {
+        "name": "relayer_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "messenger",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract MockCCTPMessenger"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -36,11 +28,6 @@ export const gateAbi = [
         "name": "sourceDomain",
         "type": "uint32",
         "internalType": "uint32"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       },
       {
         "name": "amount",
@@ -58,6 +45,19 @@ export const gateAbi = [
   },
   {
     "type": "function",
+    "name": "relayer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "sluice",
     "inputs": [],
     "outputs": [
@@ -65,6 +65,19 @@ export const gateAbi = [
         "name": "",
         "type": "address",
         "internalType": "contract Sluice"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tokenMessenger",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract ITokenMessengerV2"
       }
     ],
     "stateMutability": "view"

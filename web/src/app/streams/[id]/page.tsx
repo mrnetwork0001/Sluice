@@ -192,18 +192,18 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
             value={dest}
             onChange={(event) => setDest(event.target.value as "arc" | "base")}
           >
-            <option value="arc">Pay out here on Arc (local)</option>
-            <option value="base">Pay out on Base (local) — via CCTP</option>
+            <option value="arc">Pay out here on Arc Testnet</option>
+            <option value="base">Pay out on Base Sepolia — via CCTP</option>
           </select>
         </div>
       ) : null}
       {parsed !== undefined && tax !== undefined && parsed > 0n ? (
         <div className="mt-2 text-xs text-zinc-500">
           You receive <span className="text-emerald-300">{formatUsdc(parsed - tax)}</span> USDC
-          {crossChain ? " on Base" : ""} · tax vault gets{" "}
+          {crossChain ? " on Base Sepolia" : ""} · tax vault gets{" "}
           <span className="text-zinc-300">{formatUsdc(tax)}</span> on Arc
           {crossChain ? (
-            <> · burned via CCTP, minted by the relayer</>
+            <> · burned via CCTP v2, attested by Circle, delivered in ~20s</>
           ) : activeRules.length > 0 ? (
             <> · then {activeRules.length} auto-trigger{activeRules.length > 1 ? "s" : ""} run</>
           ) : null}
@@ -215,12 +215,12 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
           onClick={() => {
             if (parsed === undefined || !address) return;
             const net = parsed - (parsed * BigInt(stream.taxBps)) / 10_000n;
-            if (crossChain) {
+            if (crossChain && GATE_ADDRESS) {
               void send({
                 to: { address: GATE_ADDRESS, abi: gateAbi },
                 functionName: "withdrawToChain",
                 args: [stream.id, parsed, BASE_DOMAIN, address],
-                label: `Withdrew ${formatUsdc(parsed)} USDC — ${formatUsdc(net)} net exiting to Base via CCTP`,
+                label: `Withdrew ${formatUsdc(parsed)} USDC — ${formatUsdc(net)} net exiting to Base Sepolia via CCTP`,
                 onSuccess: () => setAmount(""),
               });
             } else {
@@ -241,7 +241,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
             }
           }}
         >
-          {crossChain ? "Withdraw to Base" : "Withdraw"}
+          {crossChain ? "Withdraw to Base Sepolia" : "Withdraw"}
         </Button>
       </div>
       <TxBanner status={status} onDismiss={reset} />

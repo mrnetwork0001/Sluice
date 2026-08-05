@@ -8,9 +8,13 @@ import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
   BASE_SIDE,
+  FINALITY_FAST,
   GATE_ADDRESS,
+  addressToBytes32,
   crossChainEnabled,
   encodeFundStreamHook,
+  fastMaxFee,
+  hookDestinationCaller,
   messengerAbi,
 } from "@/lib/crosschain";
 import { Button, Card, CardTitle, Field, PageHeader, TxBanner, inputClass } from "@/components/ui";
@@ -143,7 +147,7 @@ export default function CreateStreamPage() {
               label="Fund from"
               hint={
                 fundFrom === "base"
-                  ? "Burns USDC on Base via CCTP; the gate hook opens the stream on Arc when the relayer delivers the mint."
+                  ? "Burns real USDC on Base Sepolia via CCTP v2; Circle attests, the relayer delivers, and the gate opens the stream on Arc (~20s)."
                   : undefined
               }
             >
@@ -152,8 +156,8 @@ export default function CreateStreamPage() {
                 value={fundFrom}
                 onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
               >
-                <option value="arc">This wallet on Arc (local)</option>
-                <option value="base">Treasury on Base (local) — via CCTP</option>
+                <option value="arc">This wallet on Arc Testnet</option>
+                <option value="base">This wallet on Base Sepolia — via CCTP</option>
               </select>
             </Field>
           ) : null}
@@ -185,7 +189,7 @@ export default function CreateStreamPage() {
               const vault = (taxBps === 0
                 ? "0x0000000000000000000000000000000000000000"
                 : taxVault) as `0x${string}`;
-              if (fundFrom === "base") {
+              if (fundFrom === "base" && GATE_ADDRESS) {
                 void send({
                   to: { address: BASE_SIDE.messenger, abi: messengerAbi },
                   chainId: BASE_SIDE.chainId,
@@ -193,7 +197,11 @@ export default function CreateStreamPage() {
                   args: [
                     parsedAmount,
                     ARC_DOMAIN,
-                    GATE_ADDRESS,
+                    addressToBytes32(GATE_ADDRESS),
+                    BASE_SIDE.usdc,
+                    hookDestinationCaller(),
+                    fastMaxFee(parsedAmount),
+                    FINALITY_FAST,
                     encodeFundStreamHook({
                       employer: address,
                       recipient: recipient as `0x${string}`,
@@ -207,7 +215,7 @@ export default function CreateStreamPage() {
                     spender: BASE_SIDE.messenger,
                     amount: parsedAmount,
                   },
-                  label: `Burned ${formatUsdc(parsedAmount)} USDC on Base — stream opens on Arc as soon as the relayer delivers`,
+                  label: `Burned ${formatUsdc(parsedAmount)} USDC on Base Sepolia — Circle attests and the stream opens on Arc in ~20s`,
                 });
               } else {
                 void send({

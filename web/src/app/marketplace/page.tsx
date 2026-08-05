@@ -20,9 +20,13 @@ import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
   BASE_SIDE,
+  FINALITY_FAST,
   GATE_ADDRESS,
+  addressToBytes32,
   crossChainEnabled,
   encodeBuyStreamHook,
+  fastMaxFee,
+  hookDestinationCaller,
   messengerAbi,
 } from "@/lib/crosschain";
 import Link from "next/link";
@@ -265,13 +269,14 @@ function Listing({ stream }: { stream: Stream }) {
             >
               Buy for {formatUsdc(stream.salePrice)} USDC
             </Button>
-            {canCrossChain ? (
+            {canCrossChain && GATE_ADDRESS ? (
               <Button
                 variant="ghost"
                 className="w-full"
                 disabled={busy || !address}
                 onClick={() =>
                   address &&
+                  GATE_ADDRESS &&
                   void send({
                     to: { address: BASE_SIDE.messenger, abi: messengerAbi },
                     chainId: BASE_SIDE.chainId,
@@ -279,7 +284,11 @@ function Listing({ stream }: { stream: Stream }) {
                     args: [
                       stream.salePrice,
                       ARC_DOMAIN,
-                      GATE_ADDRESS,
+                      addressToBytes32(GATE_ADDRESS),
+                      BASE_SIDE.usdc,
+                      hookDestinationCaller(),
+                      fastMaxFee(stream.salePrice),
+                      FINALITY_FAST,
                       encodeBuyStreamHook(address, stream.id),
                     ],
                     approval: {
@@ -287,11 +296,11 @@ function Listing({ stream }: { stream: Stream }) {
                       spender: BASE_SIDE.messenger,
                       amount: stream.salePrice,
                     },
-                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base — the gate settles the purchase on Arc via CCTP hook`,
+                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base Sepolia — Circle attests and the gate settles the purchase on Arc in ~20s`,
                   })
                 }
               >
-                Buy from Base via CCTP ⚡
+                Buy from Base Sepolia via CCTP ⚡
               </Button>
             ) : null}
           </>

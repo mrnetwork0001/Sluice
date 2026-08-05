@@ -29,13 +29,13 @@ function useTreasuryActivity() {
   const chainId = useChainId();
   return useQuery({
     queryKey: ["treasury-activity", chainId],
-    enabled: Boolean(client),
+    enabled: Boolean(client && TREASURY_ADDRESS),
     refetchInterval: 6_000,
     queryFn: async (): Promise<ActivityEntry[]> => {
       const entries: ActivityEntry[] = [];
       for (const event of activityEvents) {
         const logs = await client!.getLogs({
-          address: TREASURY_ADDRESS,
+          address: TREASURY_ADDRESS!,
           event,
           fromBlock: 0n,
           toBlock: "latest",
@@ -78,7 +78,7 @@ export default function TreasuryPage() {
   const { send, status, reset, busy } = useSluiceWrite();
   const { data: activity } = useTreasuryActivity();
 
-  const treasuryContract = { address: TREASURY_ADDRESS, abi: treasuryAbi } as const;
+  const treasuryContract = { address: TREASURY_ADDRESS!, abi: treasuryAbi } as const;
   const { data } = useReadContracts({
     contracts: sluice
       ? [
@@ -93,7 +93,7 @@ export default function TreasuryPage() {
         ]
       : [],
     allowFailure: true,
-    query: { enabled: Boolean(sluice && usdc), refetchInterval: 4_000 },
+    query: { enabled: Boolean(sluice && usdc && TREASURY_ADDRESS), refetchInterval: 4_000 },
   });
 
   const [sweepable, liability, sluiceHeld, nav, principal, yieldEarned, idle, adaptersInfo] = (
@@ -103,6 +103,7 @@ export default function TreasuryPage() {
   const adapters = adaptersInfo as
     | readonly [readonly string[], readonly bigint[], readonly bigint[], readonly number[], readonly boolean[]]
     | undefined;
+  const remoteIndex = adapters ? adapters[4].findIndex((isRemote) => isRemote) : -1;
 
   if (!isConnected) {
     return (
@@ -124,8 +125,8 @@ export default function TreasuryPage() {
           sub="Idle payroll escrow swept into cross-chain yield venues via CCTP, recalled on demand."
         />
         <EmptyState
-          title="Coming to Arc Testnet with the Bridge Kit integration"
-          body="The auto-yield treasury (sweep → rebalance across chains → auto-recall for withdrawals) is fully built and tested against a local CCTP rig — see SluiceTreasury.sol and the repo's ./dev.sh demo. It goes live here once real CCTP domains connect Arc to other chains."
+          title="Treasury not yet wired on this network"
+          body="Switch to Arc Testnet — the auto-yield treasury routes idle escrow over real CCTP v2 between Arc and Base Sepolia."
         />
       </div>
     );
@@ -199,24 +200,24 @@ export default function TreasuryPage() {
             </Button>
             <Button
               variant="ghost"
-              disabled={busy}
+              disabled={busy || remoteIndex < 0}
               onClick={() =>
                 void send({
                   to: treasuryContract,
                   functionName: "requestRemoteReturn",
-                  args: [1n],
-                  label: "Return requested — relayer is bringing the Base position home",
+                  args: [BigInt(remoteIndex)],
+                  label: "Return requested — the relayer is bringing the Base Sepolia position home",
                 })
               }
             >
-              Recall from Base
+              Recall from Base Sepolia
             </Button>
           </div>
           <TxBanner status={status} onDismiss={reset} />
           <p className="mt-4 text-xs leading-relaxed text-zinc-500">
             Flow: <span className="text-zinc-300">sweepIdle()</span> moves everything above the 40%
             liquidity buffer here · <span className="text-zinc-300">rebalance()</span> splits it
-            50/50 between the Arc money market and the Base vault (burned across via CCTP) · any
+            50/50 between the Arc reserve vault and the Base Sepolia vault (burned across real CCTP v2) · any
             withdrawal that outruns the buffer auto-recalls liquidity; remote funds come home with
             their yield through a hooked CCTP return.
           </p>
