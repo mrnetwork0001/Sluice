@@ -115,28 +115,28 @@ an on-chain activity feed.
 ### Full product frontend
 Next.js 16 App Router app: marketing landing, live dashboard with per-second
 vesting animation, stream detail (withdraw / advance / insure / split / sell),
-marketplace, treasury console, and automation rules - plus a zero-install **demo
-wallet** for local evaluation.
+marketplace, treasury console, and automation rules - all wired to the live Arc
+Testnet deployment.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Base["Any EVM chain (demo: Base)"]
+    subgraph Base["Any EVM chain (live: Base Sepolia)"]
         LP[LP / Employer wallet]
-        MB[CCTP Messenger]
+        MB[TokenMessengerV2]
         RV[RemoteYieldVault<br/>8.6% APY]
     end
 
     subgraph Arc["Arc L1 — USDC gas, sub-second finality"]
-        MA[CCTP Messenger]
+        MA[TokenMessengerV2]
         GATE[SluiceGate<br/>hook dispatcher]
         SLUICE[Sluice.sol<br/>ERC-3525 streams · marketplace<br/>advances · insurance pool]
         TRES[SluiceTreasury<br/>NAV · buffer · recall]
-        AMM[Arc Money Market<br/>4.2% APY]
+        AMM[Morpho USDC Vault<br/>ERC-4626 · 3.5% APY]
     end
 
-    REL((Relayer /<br/>attestation))
+    REL((Sluice relayer /<br/>Circle Iris attestation))
 
     LP -- "burn + hook<br/>(fund · buy)" --> MB
     MB <-- messages --> REL
@@ -155,14 +155,17 @@ flowchart LR
 | [`erc3525/ERC3525.sol`](contracts/erc3525/ERC3525.sol) | Vendored minimal ERC-3525 with value-transfer hook |
 | [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver - cross-chain funding, buyouts, withdrawal exits |
 | [`crosschain/SluiceTreasury.sol`](contracts/crosschain/SluiceTreasury.sol) | Idle-escrow yield router: sweep / rebalance / recall, NAV, adapter registry |
-| [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | Local money-market adapter + CCTP remote-vault adapter |
+| [`crosschain/ERC4626Adapter.sol`](contracts/crosschain/ERC4626Adapter.sol) | Real ERC-4626 adapter — deposits idle escrow into the Morpho USDC vault on Arc |
+| [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | Reserve adapter (simulated APY, used in tests) + CCTP remote-vault adapter |
 | [`crosschain/RemoteYieldVault.sol`](contracts/crosschain/RemoteYieldVault.sol) | Destination-chain vault; accrues APY, exits home with yield |
-| [`crosschain/MockCCTPMessenger.sol`](contracts/crosschain/MockCCTPMessenger.sol) | Local stand-in mirroring CCTP v2 `depositForBurnWithHook` semantics |
+| [`crosschain/CCTPInterfaces.sol`](contracts/crosschain/CCTPInterfaces.sol) | Canonical `TokenMessengerV2` / `MessageTransmitterV2` interfaces |
 
-> **Design note:** the mock messenger deliberately mirrors CCTP v2's burn/mint +
-> hook interface, and [`web/scripts/relayer.mjs`](web/scripts/relayer.mjs) plays
-> Circle's attestation service. Swapping to real CCTP domains through Circle's
-> **Bridge Kit** is a configuration change, not a rewrite.
+> **No mock messenger.** Cross-chain transfers go through Circle's canonical
+> `TokenMessengerV2` and are attested by Circle's Iris API; the local
+> [`web/scripts/cctp-relayer.mjs`](web/scripts/cctp-relayer.mjs) only *delivers*
+> attested messages and invokes their hooks — it does not stand in for CCTP.
+> Circle's **Bridge Kit** is deliberately not used: it does not express the
+> `depositForBurnWithHook` payloads Sluice's gate depends on.
 
 ## How the Core Flows Work
 
@@ -182,27 +185,39 @@ money market and, via hooked CCTP, the remote vault → any withdrawal exceeding
 Sluice's local balance triggers `treasury.recall()` inside `_push` →
 `requestRemoteReturn()` + relayer bring the remote position home **with yield**.
 
-## Quick Start - Local Demo
+## Quick Start
 
-Requirements: [Foundry](https://getfoundry.sh), Node 20+.
+Requirements: Node 20+ and an injected wallet (MetaMask or similar).
 
 ```bash
 git clone --recurse-submodules https://github.com/mrnetwork0001/Sluice.git
-cd Sluice && cd web && npm install && cd ..
-./dev.sh
+cd Sluice/web && npm install && npm run dev
 ```
 
-`dev.sh` boots the entire twin-chain environment:
+Open `http://localhost:3000` and connect your wallet — the app offers to add
+**Arc Testnet** (chain `5042002`) automatically. Fund it from the faucet linked in
+the app; on Arc, USDC *is* the gas token, so one faucet claim covers both.
 
-1. Two anvil nodes - **Arc (local)** on `:8545` and **Base (local)** on `:8546`.
-2. Seeded deployments on both sides: three salary streams (one insured, two listed
-   at a discount), a 50,000 USDC insurance pool, and the cross-chain treasury.
-3. The CCTP relayer (delivers burns, executes remote-vault returns).
-4. The web app on `http://localhost:3000` (or next free port).
+There is no local chain to boot and no seed data to generate: the app talks
+directly to the live Arc Testnet deployment listed below.
 
-Open the app and click **Demo wallet** - it connects the seeded employee account
-(anvil keeps dev accounts unlocked, so no browser extension is required). To play
-the employer or LP roles, import anvil dev keys #0 / #2 into MetaMask.
+Optional environment (only for the Circle-hosted features — see
+[`web/.env.local.example`](web/.env.local.example)):
+
+| Variable | Enables |
+|---|---|
+| `NEXT_PUBLIC_CIRCLE_APP_ID` | MPC wallet onboarding at `/onboard` |
+| `CIRCLE_API_KEY` | server-side Circle Wallets + Swap Kit proxy |
+
+**Cross-chain flows need the relayer.** Funding or exiting via Base Sepolia
+requires the CCTP relayer to deliver attested messages and execute their hooks:
+
+```bash
+PRIVATE_KEY=0x... node web/scripts/cctp-relayer.mjs
+```
+
+Without it a burn is still attested by Circle, but nothing mints on the
+destination chain — the stream will not appear.
 
 **Where to see each feature**
 
@@ -214,11 +229,12 @@ the employer or LP roles, import anvil dev keys #0 / #2 into MetaMask.
 | Buy a stream cross-chain | Marketplace → *"Buy from Base via CCTP ⚡"* |
 | Treasury sweep / rebalance / recall + activity feed | Treasury tab |
 | Swap Kit auto-triggers + history | Automation tab |
+| Seedless employee wallet (Circle MPC) | `/onboard` |
 
 ## Testing
 
 ```bash
-forge test          # 26 tests
+forge test          # 44 tests
 forge test -vvv     # verbose traces
 ```
 
@@ -239,16 +255,20 @@ insurance pool all run against native USDC:
 
 | | |
 |---|---|
-| **Sluice (core payroll)** | [`0x00bAfc819f02DA0DAE3089Eebb233dBFdc327373`](https://testnet.arcscan.app/address/0x00bAfc819f02DA0DAE3089Eebb233dBFdc327373) |
-| **SluiceGate (CCTP entry/exit)** | [`0x3Ae58Ba4A0bF9A02C60a594B53875D141E365257`](https://testnet.arcscan.app/address/0x3Ae58Ba4A0bF9A02C60a594B53875D141E365257) |
-| **SluiceTreasury (auto-yield)** | [`0x4174f47adE8f0cE4F3E761996636FB1E086EE421`](https://testnet.arcscan.app/address/0x4174f47adE8f0cE4F3E761996636FB1E086EE421) |
-| **Arc Reserve Vault (4.2%)** | [`0x9a9e4c3d716329Ae4570EEdbb7F8CCdD5c419B88`](https://testnet.arcscan.app/address/0x9a9e4c3d716329Ae4570EEdbb7F8CCdD5c419B88) |
-| **CCTP Remote Adapter** | [`0xd7582ee8B59c389dFBbc04519d08878594142743`](https://testnet.arcscan.app/address/0xd7582ee8B59c389dFBbc04519d08878594142743) |
-| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507`](https://sepolia.basescan.org/address/0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507) |
+| **Sluice (core payroll)** | [`0xc0aD99f53A49DB154098717Dbdd0B16c73B2f32D`](https://testnet.arcscan.app/address/0xc0aD99f53A49DB154098717Dbdd0B16c73B2f32D) |
+| **SluiceGate (CCTP entry/exit)** | [`0x4B5fB3206bf6B4c69D9081c7D35187A0E0cc55E8`](https://testnet.arcscan.app/address/0x4B5fB3206bf6B4c69D9081c7D35187A0E0cc55E8) |
+| **SluiceTreasury (auto-yield)** | [`0x5d5fa6CD2FBde91B2F9045450F43065C4E9cD691`](https://testnet.arcscan.app/address/0x5d5fa6CD2FBde91B2F9045450F43065C4E9cD691) |
+| **Morpho USDC Vault via Circle Earn (3.5%)** | [`0xB4968f2d5dCe632f46b006f19D004D7e4Bd9BCAb`](https://testnet.arcscan.app/address/0xB4968f2d5dCe632f46b006f19D004D7e4Bd9BCAb) |
+| **CCTP Remote Adapter** | [`0x4D75134A5a34F034F913adCF3D7433fDf4345498`](https://testnet.arcscan.app/address/0x4D75134A5a34F034F913adCF3D7433fDf4345498) |
+| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0xd8067404bd10D9bDf15BfD0D771696550d05Ecd1`](https://sepolia.basescan.org/address/0xd8067404bd10D9bDf15BfD0D771696550d05Ecd1) |
 | Chain ID | `5042002` (`0x4CEF52`) |
 | RPC | `https://rpc.testnet.arc.network` |
 | Explorer | `https://testnet.arcscan.app` |
 | USDC (native gas) | `0x3600000000000000000000000000000000000000` |
+
+These are the addresses the app actually loads, from
+[`web/src/lib/deployments.5042002.json`](web/src/lib/deployments.5042002.json)
+and [`deployments.84532.json`](web/src/lib/deployments.84532.json).
 
 **Auto-triggers are real swaps too.** Withdrawal rules route a slice of each
 paycheck through Circle Swap Kit on Arc — live quotes come from Circle's routing
@@ -278,8 +298,13 @@ export PRIVATE_KEY=0x...   # funded with Arc testnet USDC
 forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
 ```
 
-Then set `NEXT_PUBLIC_SLUICE_ADDRESS` in `web/.env.local`. If contracts changed,
-regenerate the typed ABI:
+> **Careful:** `script/Deploy.s.sol` rewrites
+> `web/src/lib/deployments.5042002.json` with only the `sluice` key, dropping the
+> `gate` / `treasury` / adapter / `fromBlock` entries and disabling every
+> cross-chain feature. Re-run `script/DeployCrossChain.s.sol` and
+> `script/AddEarnAdapter.s.sol` afterwards, or restore the other keys by hand.
+
+If contracts changed, regenerate the typed ABI:
 
 ```bash
 echo "export const sluiceAbi = $(forge inspect Sluice abi --json) as const;" > web/src/lib/sluiceAbi.ts
@@ -288,16 +313,17 @@ echo "export const sluiceAbi = $(forge inspect Sluice abi --json) as const;" > w
 ## Repository Layout
 
 ```
-contracts/               Sluice.sol · vendored ERC-3525 · MockUSDC
-contracts/crosschain/    MockCCTPMessenger · SluiceGate · SluiceTreasury
-                         YieldAdapters · RemoteYieldVault
-test/                    Sluice.t.sol · CrossChain.t.sol   (26 tests)
-script/                  Deploy.s.sol (Arc testnet) · DeployLocal[B].s.sol (demo)
-web/                     Next.js 16 app — wagmi v3 / viem / Tailwind v4
-web/scripts/relayer.mjs  Local CCTP attestation relayer
-web/src/lib/             chain configs · typed ABIs · deployment address JSONs
-docs/                    screenshots · pitch deck · PITCH_DECK.md
-dev.sh                   one-command twin-chain demo
+contracts/                    Sluice.sol · vendored ERC-3525
+contracts/crosschain/         SluiceGate · SluiceTreasury · ERC4626Adapter
+                              YieldAdapters · RemoteYieldVault · CCTPInterfaces
+contracts/mocks/              MockUSDC · MockERC4626  (test fixtures only)
+test/                         Sluice.t.sol · CrossChain.t.sol   (44 tests)
+script/                       Deploy · DeployCrossChain · AddEarnAdapter
+                              AddRemoteAdapter · DeployBaseVault
+web/                          Next.js 16 app — wagmi v3 / viem / Tailwind v4
+web/scripts/cctp-relayer.mjs  CCTP attestation delivery + hook execution
+web/src/lib/                  chain configs · typed ABIs · deployment address JSONs
+docs/                         screenshots · pitch deck · PITCH_DECK.md
 ```
 
 ## Technology Stack
@@ -306,27 +332,32 @@ dev.sh                   one-command twin-chain demo
 |---|---|
 | Settlement | **Arc L1** - USDC gas, sub-second finality |
 | Contracts | Solidity 0.8.x, Foundry (via-IR), vendored ERC-3525 |
-| Cross-chain | **CCTP v2 pattern** (burn/mint + hooks), local attestation relayer |
-| Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Earn Kit** (real Morpho vault yield), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding) |
+| Cross-chain | **Circle CCTP v2** — canonical `TokenMessengerV2` + hooks, Iris attestation, local delivery relayer |
+| Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding), Morpho USDC vault via ERC-4626 (the vault Circle Earn surfaces on Arc) |
 | Frontend | Next.js 16 (App Router), wagmi v3, viem, TanStack Query, Tailwind v4 |
-| Quality | 26 Foundry tests, GitHub Actions CI (fmt + build + test), Playwright-driven E2E verification |
+| Quality | 44 Foundry tests, GitHub Actions CI (fmt + build + test), manual end-to-end verification on live Arc + Base Sepolia |
 
 ## Roadmap & Planned Integrations
 
-**Phase 1 - Production rails** *(next)*
-- [ ] **Arc testnet deployment** of the full contract suite (script ready)
-- [ ] **Real CCTP v2 domains** via Circle **Bridge Kit** - replace the mock
-      messenger with attested transfers across Arc, Base, Ethereum, and Arbitrum
-- [ ] **Circle Gateway / Unified Balance Kit** on the dashboard - one balance view
-      across every chain an employee touches
+**Phase 1 - Production rails** — ✅ shipped
+- [x] **Arc testnet deployment** of the full contract suite — live, addresses above
+- [x] **Real CCTP v2** — canonical `TokenMessengerV2`, Circle Iris attestation,
+      Arc domain 26 ↔ Base Sepolia domain 6. The mock messenger is gone.
+- [x] **Circle Gateway / Unified Balance Kit** on the dashboard
+- [x] **Circle Wallets** — seedless MPC onboarding for employees at `/onboard`
+- [x] **Circle Earn** — idle escrow earns real yield in the Morpho USDC vault
 - [ ] Public deployment at **sluiceapp.xyz**
 
-**Phase 2 - Payroll operations**
-- [ ] Employer console: batch stream creation (CSV → payroll run), org-level
-      treasury policies, role-based access
-- [ ] **EURC salary legs** - multi-currency payroll with on-withdrawal FX via Swap Kit
-- [ ] Scheduled top-ups and auto-renewing pay periods
+**Phase 2 - Payroll operations** — partly shipped
+- [x] Batch stream creation — paste a roster or drop a CSV, exact amounts or
+      percentage splits, fundable from another chain
+- [x] **EURC salary legs** — on-withdrawal FX via Swap Kit auto-triggers
+- [x] Scheduled top-ups / recurring pay periods
+- [ ] Org-level treasury policies and role-based access
 - [ ] Streaming invoices for contractors (reverse direction)
+- [ ] More CCTP domains — Ethereum, Arbitrum, Avalanche, Optimism
+- [ ] Solana payouts via Gateway (`withdrawToDomain` is already Solana-ready)
+- [ ] Hosted relayer so cross-chain flows need no local process
 
 **Phase 3 - Deeper DeFi**
 - [ ] Real yield venues behind the adapter interface (Aave-class money markets,
@@ -357,11 +388,22 @@ slide script in [`docs/PITCH_DECK.md`](docs/PITCH_DECK.md).
 
 This is **hackathon software** - unaudited, and not production-ready:
 
-- `MockUSDC`, `MockCCTPMessenger`, the yield adapters, and `RemoteYieldVault` are
-  local demo primitives (open mint/burn, permissionless relaying). Production uses
-  native USDC and Circle's attested CCTP.
-- `setGate` / `setTreasury` are one-time deploy wiring; a production system needs
-  proper ownership, timelocks, and pausability.
+- The live deployment uses **native Arc USDC and Circle's attested CCTP v2** —
+  nothing on the critical path is mocked. `MockUSDC` and `MockERC4626` remain in
+  `contracts/mocks/` purely as Foundry test fixtures and are not deployed.
+- `RemoteYieldVault` and the `ReserveYieldAdapter` model yield from pre-funded
+  reserves rather than a real venue; the Arc-side `ERC4626Adapter` is real.
+- `setGate` / `setTreasury` are one-time, first-caller-wins wiring with **no
+  ownership check**. The live instance is already wired, but any fresh deployment
+  must be wired in the same transaction batch or an attacker can claim the gate —
+  which is privileged (`withdrawFromStreamFor`). Production needs an owner,
+  timelocks, and pausability.
+- Insured cancellation refunds the unvested balance to the employer *and* records
+  the same amount as a claimable shortfall, and nothing prevents `employer ==
+  recipient`. A production build needs that guard plus a funded, underwritten pool.
+- The relayer is permissionless by design (it only delivers Circle-attested
+  messages) but it is a single local process — if it is not running, cross-chain
+  transfers are attested and never minted.
 - The treasury's liquidity buffer bounds sweeps, but adapter risk, remote-return
   latency, and insurance-pool solvency all deserve formal modeling before real
   funds are involved.

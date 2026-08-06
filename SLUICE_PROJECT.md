@@ -89,13 +89,16 @@ Sluice/
   withdrawal via `@circle-fin/swap-kit` + `adapter-viem-v2`; falls back to a recorded
   "simulated" run on chains the kit doesn't support (Arc testnet, anvil).
 - ✅ Stream discovery via `StreamCreated` logs (no indexer needed).
-- ✅ Local demo: `./dev.sh` (anvil + `script/DeployLocal.s.sol` seed + dev server);
-  verified end-to-end headlessly — screenshots in `docs/screenshots/`.
+- ✅ Runs against live Arc Testnet (`cd web && npm run dev`); the local twin-anvil
+  demo was retired with the mock layer. Screenshots in `docs/screenshots/`.
 
 ### Phase 3 — Cross-Chain Infrastructure — ✅ DONE (chain-abstracted payroll)
-- ✅ `contracts/crosschain/MockCCTPMessenger.sol` — CCTP v2-shaped burn/mint +
-  hook messenger (domains: Arc 26, Base 6); `web/scripts/relayer.mjs` plays
-  Circle's attestation service across two anvils (8545 Arc / 8546 Base 31338).
+- ✅ Real Circle CCTP v2 — canonical `TokenMessengerV2`
+  (`0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`, Arc domain 26 ↔ Base Sepolia
+  domain 6), attested by Circle's Iris API. `web/scripts/cctp-relayer.mjs`
+  delivers attested messages via `MessageTransmitterV2.receiveMessage` and
+  executes their hooks (CCTP does NOT auto-execute hooks on mint).
+  Interfaces in `contracts/crosschain/CCTPInterfaces.sol`.
 - ✅ `SluiceGate.sol` — hooked CCTP mints dispatch into Sluice: **fund a stream
   from any chain** (FUND_STREAM hook → `createStreamFor`, employer keeps cancel
   rights), **buy a listed stream from any chain** (BUY_STREAM → `buyStreamFor`,
@@ -103,15 +106,17 @@ Sluice/
   CCTP burn (tax stays on Arc).
 - ✅ `SluiceTreasury.sol` + adapters — idle escrow above a 40% liquidity buffer
   is swept (`Sluice.sweepIdle`), `rebalance()` splits it 50/50 across an Arc
-  money market (4.2%) and a Base `RemoteYieldVault` (8.6%, reached via hooked
+  Morpho USDC vault via `ERC4626Adapter` (3.5%, the vault Circle Earn surfaces on
+  Arc) and a Base `RemoteYieldVault` (8.6%, reached via hooked
   CCTP burn); withdrawals auto-recall liquidity (`_push` → `treasury.recall`);
   `requestRemoteReturn` + relayer bring the remote position home with yield.
 - ✅ UI: Treasury page (NAV, per-venue positions with chain badges, sweep /
   rebalance / recall, on-chain activity feed), fund-from select on Create,
   payout-destination select on Withdraw, "Buy from Base via CCTP" on listings.
-- ✅ 10 cross-chain forge tests (26 total); every flow driven in the browser.
-- Twin-chain demo: `./dev.sh` boots both anvils + deploys + relayer + web.
-  Address JSONs are written to `web/src/lib/deployments.<chainId>.json`.
+- ✅ 44 forge tests total; every flow driven in the browser against live testnets.
+- Address JSONs live at `web/src/lib/deployments.<chainId>.json` and are what the
+  app loads. NOTE: `script/Deploy.s.sol` rewrites the Arc JSON with only the
+  `sluice` key — re-run `DeployCrossChain` + `AddEarnAdapter` after any redeploy.
 
 ### Phase 4 — Testnet stretch
 - Swap the mock messenger for `@circle-fin/bridge-kit` + real CCTP v2 domains
