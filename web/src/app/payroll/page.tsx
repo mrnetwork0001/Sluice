@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { useSluiceWrite, useUsdcBalance } from "@/lib/hooks";
 import { formatUsdc, formatUsdcExact, parseUsdc, shortAddr } from "@/lib/format";
 import { Badge, Button, Card, CardTitle, Field, PageHeader, Stat, TxBanner, inputClass } from "@/components/ui";
+import { UnifiedBalancePanel } from "@/components/unified-balance";
 import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
@@ -309,6 +310,8 @@ export default function PayrollPage() {
               </Field>
             </div>
           </Card>
+
+          <UnifiedBalancePanel />
 
           <div className="grid grid-cols-2 gap-4">
             <Stat label="Employees" value={valid.length} sub={invalid.length > 0 ? `${invalid.length} rows need fixing` : "rows parsed"} />
