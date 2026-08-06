@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAccount, useReadContracts } from "wagmi";
-import { useSluiceAddress, useStreamIds } from "@/lib/hooks";
-import { sluiceAbi } from "@/lib/sluice";
-import { formatUsdc } from "@/lib/format";
+import { useNow, useSluiceAddress, useStream, useStreamIds } from "@/lib/hooks";
+import { liveVested, sluiceAbi } from "@/lib/sluice";
+import { formatUsdc, formatUsdcExact, shortAddr } from "@/lib/format";
 import { arcTestnet } from "@/lib/arc";
+import { SLUICE_ADDRESSES } from "@/lib/sluice";
 import { Badge, Card, ProgressBar } from "./ui";
 import { Reveal } from "./reveal";
 
@@ -197,6 +198,144 @@ const rails = [
   ["Foundry", "44 tests across payroll and cross-chain"],
 ];
 
+
+/* ---------------------------------------------------------------- live ledger */
+
+/** Per-stream Arcscan page - every row is independently checkable. */
+function instanceUrl(id: bigint): string {
+  const contract = SLUICE_ADDRESSES[arcTestnet.id];
+  return `https://testnet.arcscan.app/token/${contract}/instance/${id.toString()}`;
+}
+
+function LedgerRow({ id }: { id: bigint }) {
+  const { stream } = useStream(id);
+  const now = useNow();
+  if (!stream) {
+    return (
+      <tr className="border-t border-[var(--hairline)]">
+        <td colSpan={7} className="px-3 py-3 text-xs text-zinc-600">
+          loading #{id.toString()}…
+        </td>
+      </tr>
+    );
+  }
+  const vested = liveVested(stream, now);
+  const pct = stream.deposit > 0n ? Number((vested * 10_000n) / stream.deposit) / 100 : 0;
+  const state = stream.canceled
+    ? { label: "canceled", tone: "text-zinc-500" }
+    : pct >= 100
+      ? { label: "complete", tone: "text-zinc-400" }
+      : { label: "streaming", tone: "text-emerald-400" };
+
+  return (
+    <tr className="border-t border-[var(--hairline)] transition-colors hover:bg-white/[0.02]">
+      <td className="px-3 py-2.5 font-mono text-xs text-zinc-500">#{id.toString()}</td>
+      <td className="px-3 py-2.5 font-mono text-xs text-zinc-400">
+        {shortAddr(stream.employer)}
+        <span className="mx-1.5 text-zinc-700">→</span>
+        <span className="text-zinc-300">{shortAddr(stream.owner)}</span>
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono text-xs text-zinc-300">
+        {formatUsdc(stream.deposit)}
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono text-xs text-cyan-300">
+        {formatUsdcExact(stream.ratePerSecond)}
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono text-xs text-emerald-300">
+        {formatUsdc(vested)}
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <div className="h-1 w-16 overflow-hidden rounded-full bg-white/[0.07]">
+            <div className="h-full bg-cyan-400/70" style={{ width: `${Math.min(100, pct)}%` }} />
+          </div>
+          <span className={`font-mono text-[11px] ${state.tone}`}>{state.label}</span>
+        </div>
+      </td>
+      <td className="px-3 py-2.5 text-right">
+        <a
+          href={instanceUrl(id)}
+          target="_blank"
+          rel="noreferrer"
+          className="font-mono text-[11px] text-zinc-500 underline decoration-white/10 underline-offset-2 transition-colors hover:text-cyan-300"
+        >
+          arcscan ↗
+        </a>
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * The real contract state, on the landing page.
+ *
+ * Density is the point: a payroll product is judged on whether its numbers look
+ * like a working system. Every figure here is read live from Arc, and every row
+ * links to that stream's own explorer page, so none of it has to be taken on
+ * trust.
+ */
+function LiveLedger() {
+  const { data: refs, isLoading } = useStreamIds();
+  const contract = SLUICE_ADDRESSES[arcTestnet.id];
+  const ids = (refs ?? []).map((ref) => ref.id).slice(-6);
+
+  return (
+    <Reveal className="mt-8">
+      <div className="overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--hairline)] px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+            <span className="label text-zinc-300">Live contract state · Arc Testnet</span>
+          </div>
+          <a
+            href={`https://testnet.arcscan.app/address/${contract}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[11px] text-zinc-500 transition-colors hover:text-cyan-300"
+          >
+            {contract ? shortAddr(contract) : ""} · verified ↗
+          </a>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] border-collapse">
+            <thead>
+              <tr className="label">
+                <th className="px-3 py-2 text-left font-medium">Stream</th>
+                <th className="px-3 py-2 text-left font-medium">Employer → Recipient</th>
+                <th className="px-3 py-2 text-right font-medium">Size</th>
+                <th className="px-3 py-2 text-right font-medium">USDC / sec</th>
+                <th className="px-3 py-2 text-right font-medium">Vested</th>
+                <th className="px-3 py-2 text-left font-medium">Progress</th>
+                <th className="px-3 py-2 text-right font-medium">Proof</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && ids.length === 0 ? (
+                <tr className="border-t border-[var(--hairline)]">
+                  <td colSpan={7} className="px-3 py-6 text-center text-xs text-zinc-600">
+                    Reading streams from Arc…
+                  </td>
+                </tr>
+              ) : ids.length === 0 ? (
+                <tr className="border-t border-[var(--hairline)]">
+                  <td colSpan={7} className="px-3 py-6 text-center text-xs text-zinc-600">
+                    No streams open yet.
+                  </td>
+                </tr>
+              ) : (
+                ids.map((id) => <LedgerRow key={id.toString()} id={id} />)
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Reveal>
+  );
+}
+
 /* ------------------------------------------------------------------ page */
 
 const primaryLinkClass =
@@ -337,6 +476,8 @@ export function Landing() {
           </div>
         </div>
       </section>
+
+      <LiveLedger />
 
       {/* How it works */}
       <section className="py-16">
