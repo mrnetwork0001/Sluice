@@ -10,6 +10,7 @@ const columns: Array<{ title: string; links: Array<{ label: string; href: string
     links: [
       { label: "Dashboard", href: "/dashboard" },
       { label: "Create Stream", href: "/create" },
+      { label: "Payroll Run", href: "/payroll" },
       { label: "Marketplace", href: "/marketplace" },
       { label: "Treasury", href: "/treasury" },
       { label: "Automation", href: "/automation" },

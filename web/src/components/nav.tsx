@@ -7,6 +7,7 @@ import { ConnectButton } from "./connect-button";
 const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/create", label: "Create Stream" },
+  { href: "/payroll", label: "Payroll Run" },
   { href: "/marketplace", label: "Marketplace" },
   { href: "/treasury", label: "Treasury" },
   { href: "/automation", label: "Automation" },

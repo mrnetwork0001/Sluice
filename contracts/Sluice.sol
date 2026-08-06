@@ -63,6 +63,17 @@ contract Sluice is ERC3525 {
     /// @notice Share of obligations always kept liquid here for withdrawals (40%).
     uint256 public constant BUFFER_BPS = 4_000;
 
+    // ---- lifetime protocol metrics (monotonic; survive stream settlement) ----
+    /// @notice Total USDC ever escrowed into salary streams.
+    uint256 public totalEscrowed;
+    /// @notice Total USDC ever settled out to employees (withdrawals + advances
+    ///         + payouts on cancellation), inclusive of the tax share.
+    uint256 public totalSettled;
+    /// @notice Total USDC ever routed to tax vaults.
+    uint256 public totalTaxWithheld;
+    /// @notice Number of streams ever opened.
+    uint256 public totalStreams;
+
     event StreamCreated(
         uint256 indexed streamId,
         address indexed employer,
@@ -81,6 +92,8 @@ contract Sluice is ERC3525 {
     event InsuranceStaked(address indexed staker, uint256 amount, uint256 shares);
     event InsuranceUnstaked(address indexed staker, uint256 amount, uint256 shares);
     event DefaultCoverageClaimed(uint256 indexed streamId, address indexed to, uint256 amount);
+    event PayrollRun(address indexed employer, uint256 streamCount, uint256[] streamIds);
+    event StreamToppedUp(uint256 indexed streamId, address indexed employer, uint256 amount, uint64 newDuration);
     event EscrowSwept(uint256 amount);
     event EscrowRecalled(uint256 amount);
 
@@ -146,6 +159,8 @@ contract Sluice is ERC3525 {
 
         _pull(funder, amount);
         escrowLiability += amount;
+        totalEscrowed += amount;
+        totalStreams += 1;
         streamId = _createToken(recipient, uint256(uint160(employer)), amount);
         streams[streamId] = Stream({
             employer: employer,
@@ -163,6 +178,111 @@ contract Sluice is ERC3525 {
             shortfall: 0
         });
         emit StreamCreated(streamId, employer, recipient, amount, durationSeconds, taxBps, taxVault);
+    }
+
+    /// @notice Open many streams in one transaction — a payroll run.
+    /// @dev Arrays are parallel; one USDC pull covers the whole batch. Reverts
+    ///      atomically, so a bad row never leaves a half-executed payroll.
+    function createStreamBatch(
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        uint256 durationSeconds,
+        uint256 taxBps,
+        address taxVault
+    ) external returns (uint256[] memory streamIds) {
+        uint256 count = recipients.length;
+        require(count > 0, "Sluice: empty batch");
+        require(count == amounts.length, "Sluice: length mismatch");
+
+        streamIds = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            streamIds[i] =
+                _createStream(msg.sender, msg.sender, recipients[i], amounts[i], durationSeconds, taxBps, taxVault);
+        }
+        emit PayrollRun(msg.sender, count, streamIds);
+    }
+
+    /// @notice Gate-only payroll run funded by a cross-chain mint: `amount` is
+    ///         split across recipients by basis points.
+    /// @dev Percentages rather than fixed amounts because CCTP deducts a transfer
+    ///      fee — the exact arriving amount is unknowable when the burn is signed,
+    ///      but a split always applies cleanly. The last recipient absorbs the
+    ///      rounding dust so the run allocates the mint exactly.
+    function createStreamBatchFor(
+        address employer,
+        address[] calldata recipients,
+        uint256[] calldata shareBps,
+        uint256 amount,
+        uint256 durationSeconds,
+        uint256 taxBps,
+        address taxVault
+    ) external returns (uint256[] memory streamIds) {
+        require(msg.sender == gate, "Sluice: only gate");
+        uint256 count = recipients.length;
+        require(count > 0, "Sluice: empty batch");
+        require(count == shareBps.length, "Sluice: length mismatch");
+
+        uint256 totalBps;
+        for (uint256 i = 0; i < count; i++) {
+            totalBps += shareBps[i];
+        }
+        require(totalBps == BPS, "Sluice: shares must total 100%");
+
+        streamIds = new uint256[](count);
+        uint256 allocated;
+        for (uint256 i = 0; i < count; i++) {
+            uint256 share = i == count - 1 ? amount - allocated : (amount * shareBps[i]) / BPS;
+            allocated += share;
+            streamIds[i] = _createStream(employer, msg.sender, recipients[i], share, durationSeconds, taxBps, taxVault);
+        }
+        emit PayrollRun(employer, count, streamIds);
+    }
+
+    /// @notice Gate-only payroll run with EXACT per-employee amounts, funded by a
+    ///         cross-chain mint. The gate burns with fee headroom and refunds any
+    ///         surplus, so exact-amount payroll works cross-chain too.
+    function createStreamBatchExactFor(
+        address employer,
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        uint256 durationSeconds,
+        uint256 taxBps,
+        address taxVault
+    ) external returns (uint256[] memory streamIds) {
+        require(msg.sender == gate, "Sluice: only gate");
+        uint256 count = recipients.length;
+        require(count > 0, "Sluice: empty batch");
+        require(count == amounts.length, "Sluice: length mismatch");
+
+        streamIds = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            streamIds[i] =
+                _createStream(employer, msg.sender, recipients[i], amounts[i], durationSeconds, taxBps, taxVault);
+        }
+        emit PayrollRun(employer, count, streamIds);
+    }
+
+    /// @notice Extend a live stream with more USDC — recurring payroll without
+    ///         re-onboarding the employee. The rate is preserved and the end date
+    ///         moves out by `amount / ratePerSecond`.
+    function topUpStream(uint256 streamId, uint256 amount) external {
+        Stream storage s = streams[streamId];
+        require(msg.sender == s.employer, "Sluice: only employer");
+        require(!s.canceled, "Sluice: canceled");
+        require(amount > 0, "Sluice: amount zero");
+        require(s.ratePerSecond > 0, "Sluice: zero rate");
+
+        uint256 addedSeconds = amount / s.ratePerSecond;
+        require(addedSeconds > 0, "Sluice: top-up below one second");
+        // Only the exact multiple of the rate is credited so vesting stays exact.
+        uint256 credited = addedSeconds * s.ratePerSecond;
+
+        _pull(msg.sender, credited);
+        escrowLiability += credited;
+        s.deposit += credited;
+        s.duration += uint64(addedSeconds);
+        _mintValue(streamId, credited);
+        emit StreamToppedUp(streamId, msg.sender, credited, s.duration);
     }
 
     /// @notice USDC vested so far (capped at the scheduled deposit).
@@ -217,6 +337,8 @@ contract Sluice is ERC3525 {
 
         uint256 tax = (amount * s.taxBps) / BPS;
         net = amount - tax;
+        totalSettled += amount;
+        totalTaxWithheld += tax;
         if (tax > 0) _push(s.taxVault, tax);
         _push(sink == address(0) ? owner : sink, net);
         emit StreamWithdrawal(streamId, owner, amount, tax);
@@ -245,6 +367,8 @@ contract Sluice is ERC3525 {
 
         if (owed > 0) {
             uint256 tax = (owed * s.taxBps) / BPS;
+            totalSettled += owed;
+            totalTaxWithheld += tax;
             if (tax > 0) _push(s.taxVault, tax);
             _push(owner, owed - tax);
         }
@@ -308,6 +432,7 @@ contract Sluice is ERC3525 {
 
         s.advanced += advanceAmount;
         escrowLiability -= advanceAmount;
+        totalSettled += advanceAmount;
         _burnValue(streamId, advanceAmount);
         _push(msg.sender, advanceAmount);
         emit SalaryAdvance(streamId, msg.sender, advanceAmount);

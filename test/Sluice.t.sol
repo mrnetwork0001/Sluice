@@ -256,6 +256,146 @@ contract SluiceTest is Test {
         sluice.claimDefaultCoverage(id);
     }
 
+    // --------------------------------------------- batch payroll & top-ups
+
+    function test_PayrollRunOpensManyStreams() public {
+        address[] memory recipients = new address[](3);
+        recipients[0] = employee;
+        recipients[1] = carol;
+        recipients[2] = lp;
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = 3_000e6;
+        amounts[1] = 2_000e6;
+        amounts[2] = 1_000e6;
+
+        uint256 employerBefore = usdc.balanceOf(employer);
+        vm.prank(employer);
+        uint256[] memory ids = sluice.createStreamBatch(recipients, amounts, 30 days, 800, taxVault);
+
+        assertEq(ids.length, 3);
+        assertEq(usdc.balanceOf(employer), employerBefore - 6_000e6); // one pull for the run
+        assertEq(sluice.ownerOf(ids[0]), employee);
+        assertEq(sluice.ownerOf(ids[1]), carol);
+        assertEq(sluice.ownerOf(ids[2]), lp);
+        assertEq(sluice.balanceOf(ids[1]), 2_000e6);
+        assertEq(sluice.escrowLiability(), 6_000e6);
+
+        // Every stream vests on its own schedule from the same start.
+        // ratePerSecond is integer-truncated, so a 30-day stream drifts a few
+        // millionths per second — half of a 1,000 USDC stream lands just under 500.
+        vm.warp(block.timestamp + 15 days);
+        assertApproxEqAbs(sluice.availableToWithdraw(ids[0]), 1_500e6, 4e6);
+        assertApproxEqAbs(sluice.availableToWithdraw(ids[2]), 500e6, 2e6);
+    }
+
+    function test_RevertWhen_BatchArraysMismatch() public {
+        address[] memory recipients = new address[](2);
+        recipients[0] = employee;
+        recipients[1] = carol;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1_000e6;
+
+        vm.prank(employer);
+        vm.expectRevert("Sluice: length mismatch");
+        sluice.createStreamBatch(recipients, amounts, 30 days, 0, address(0));
+    }
+
+    function test_RevertWhen_BatchEmpty() public {
+        vm.prank(employer);
+        vm.expectRevert("Sluice: empty batch");
+        sluice.createStreamBatch(new address[](0), new uint256[](0), 30 days, 0, address(0));
+    }
+
+    function test_BatchIsAtomic() public {
+        address[] memory recipients = new address[](2);
+        recipients[0] = employee;
+        recipients[1] = address(0); // invalid row
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1_000e6;
+        amounts[1] = 1_000e6;
+
+        uint256 before = usdc.balanceOf(employer);
+        vm.prank(employer);
+        vm.expectRevert("Sluice: recipient zero");
+        sluice.createStreamBatch(recipients, amounts, 30 days, 0, address(0));
+        assertEq(usdc.balanceOf(employer), before); // nothing escrowed
+    }
+
+    function test_TopUpExtendsStreamKeepingRate() public {
+        uint256 id = _createStream(); // 1,000 USDC over 1,000s -> 1 USDC/s
+        vm.warp(block.timestamp + 400);
+
+        vm.prank(employer);
+        sluice.topUpStream(id, 500e6);
+
+        (,, uint64 duration, uint256 deposit, uint256 rate,,,,,,,,) = sluice.streams(id);
+        assertEq(rate, 1e6); // unchanged
+        assertEq(deposit, 1_500e6);
+        assertEq(duration, 1_500); // +500 seconds of runway
+        assertEq(sluice.balanceOf(id), 1_500e6); // nothing withdrawn yet, so value = full deposit
+
+        // Vesting continues past the original end date.
+        vm.warp(block.timestamp + 700); // t = 1,100 > original 1,000
+        assertEq(sluice.availableToWithdraw(id), 1_100e6);
+    }
+
+    function test_RevertWhen_TopUpByNonEmployer() public {
+        uint256 id = _createStream();
+        vm.prank(employee);
+        vm.expectRevert("Sluice: only employer");
+        sluice.topUpStream(id, 100e6);
+    }
+
+    function test_RevertWhen_TopUpBelowOneSecond() public {
+        uint256 id = _createStream(); // 1 USDC/s
+        vm.prank(employer);
+        vm.expectRevert("Sluice: top-up below one second");
+        sluice.topUpStream(id, 100); // 0.0001 USDC — less than one second of rate
+    }
+
+    // --------------------------------------------------- protocol metrics
+
+    function test_LifetimeMetricsTrackVolume() public {
+        assertEq(sluice.totalEscrowed(), 0);
+        assertEq(sluice.totalStreams(), 0);
+
+        uint256 id = _createStream(); // 1,000 USDC, 10% tax
+        assertEq(sluice.totalEscrowed(), 1_000e6);
+        assertEq(sluice.totalStreams(), 1);
+        assertEq(sluice.totalSettled(), 0);
+
+        vm.warp(block.timestamp + 500);
+        vm.prank(employee);
+        sluice.withdrawFromStream(id, 200e6);
+        assertEq(sluice.totalSettled(), 200e6); // gross, inclusive of tax
+        assertEq(sluice.totalTaxWithheld(), 20e6);
+
+        vm.prank(employee);
+        sluice.borrowSalaryAdvance(id, 100e6);
+        assertEq(sluice.totalSettled(), 300e6);
+
+        // Metrics are lifetime: cancelling does not rewind them.
+        vm.prank(employer);
+        sluice.cancelStream(id);
+        assertGe(sluice.totalSettled(), 300e6);
+        assertEq(sluice.totalEscrowed(), 1_000e6);
+        assertEq(sluice.totalStreams(), 1);
+    }
+
+    function test_BatchCountsTowardMetrics() public {
+        address[] memory recipients = new address[](2);
+        recipients[0] = employee;
+        recipients[1] = carol;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 400e6;
+        amounts[1] = 600e6;
+
+        vm.prank(employer);
+        sluice.createStreamBatch(recipients, amounts, 1_000, 0, address(0));
+        assertEq(sluice.totalEscrowed(), 1_000e6);
+        assertEq(sluice.totalStreams(), 2);
+    }
+
     // ------------------------------------------------------- cancellation
 
     function test_CancelSettlesBothParties() public {

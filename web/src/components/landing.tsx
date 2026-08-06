@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import { useSluiceAddress, useStreamIds } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { formatUsdc } from "@/lib/format";
@@ -190,13 +190,29 @@ export function Landing() {
   const { isConnected } = useAccount();
   const sluice = useSluiceAddress();
   const { data: streamRefs } = useStreamIds();
-  const { data: poolBalance } = useReadContract({
-    address: sluice,
-    abi: sluiceAbi,
-    functionName: "poolBalance",
-    chainId: arcTestnet.id,
+  // Loosely typed call list: wagmi's generic inference blows its depth limit on a
+  // heterogeneous batch this size.
+  const metricCalls = ["totalEscrowed", "totalSettled", "totalTaxWithheld", "totalStreams"];
+  const { data: metrics } = useReadContracts({
+    contracts: sluice
+      ? metricCalls.map((functionName) => ({
+          address: sluice,
+          abi: sluiceAbi,
+          functionName,
+          chainId: arcTestnet.id,
+        }))
+      : [],
+    allowFailure: true,
     query: { enabled: Boolean(sluice), refetchInterval: 10_000 },
   });
+  const readMetric = (index: number): bigint | undefined => {
+    const entry = (metrics as ReadonlyArray<{ status: string; result?: unknown }> | undefined)?.[index];
+    return entry?.status === "success" ? (entry.result as bigint) : undefined;
+  };
+  const escrowed = readMetric(0);
+  const settled = readMetric(1);
+  const taxWithheld = readMetric(2);
+  const streamCount = readMetric(3);
 
   return (
     <div className="pb-10">
@@ -254,29 +270,37 @@ export function Landing() {
       </section>
 
       {/* Live stats */}
-      <section className="grid gap-4 border-y border-white/[0.06] py-6 sm:grid-cols-3">
-        <div className="text-center">
-          <div className="font-mono text-3xl font-semibold tabular-nums text-zinc-50">
-            {streamRefs ? streamRefs.length : "—"}
-          </div>
-          <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            streams created on this chain
-          </div>
-        </div>
+      <section className="grid gap-6 border-y border-white/[0.06] py-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-cyan-300">
-            {poolBalance !== undefined ? formatUsdc(poolBalance as bigint) : "—"}
+            {escrowed !== undefined ? formatUsdc(escrowed) : "—"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            USDC underwriting the insurance pool
+            USDC streamed through Sluice
           </div>
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-emerald-300">
-            &lt;1s
+            {settled !== undefined ? formatUsdc(settled) : "—"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            finality on Arc · gas paid in USDC
+            USDC settled to workers
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="font-mono text-3xl font-semibold tabular-nums text-zinc-50">
+            {streamCount !== undefined ? streamCount.toString() : (streamRefs?.length ?? "—")}
+          </div>
+          <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
+            salary streams opened
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="font-mono text-3xl font-semibold tabular-nums text-amber-300">
+            {taxWithheld !== undefined ? formatUsdc(taxWithheld) : "—"}
+          </div>
+          <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
+            USDC auto-withheld as tax
           </div>
         </div>
       </section>

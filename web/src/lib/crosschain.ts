@@ -125,6 +125,8 @@ export const messengerAbi = [
 // Hook action ids — mirror SluiceHooks in SluiceGate.sol.
 const FUND_STREAM = 0;
 const BUY_STREAM = 1;
+const FUND_BATCH = 4;
+const FUND_BATCH_EXACT = 5;
 
 const hookEnvelope = [{ type: "uint8" }, { type: "bytes" }] as const;
 
@@ -153,6 +155,75 @@ export function encodeFundStreamHook(params: {
 export function encodeBuyStreamHook(buyer: `0x${string}`, streamId: bigint): `0x${string}` {
   const payload = encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [buyer, streamId]);
   return encodeAbiParameters(hookEnvelope, [BUY_STREAM, payload]);
+}
+
+/**
+ * Payload for a cross-chain payroll run. Allocation is by basis points rather
+ * than fixed amounts because CCTP deducts a transfer fee — the exact arriving
+ * amount is unknown when the burn is signed, but a percentage split always
+ * applies cleanly to whatever lands.
+ */
+export function encodeFundBatchHook(params: {
+  employer: `0x${string}`;
+  recipients: readonly `0x${string}`[];
+  shareBps: readonly bigint[];
+  durationSeconds: bigint;
+  taxBps: bigint;
+  taxVault: `0x${string}`;
+}): `0x${string}` {
+  const payload = encodeAbiParameters(
+    [
+      { type: "address" },
+      { type: "address[]" },
+      { type: "uint256[]" },
+      { type: "uint256" },
+      { type: "uint256" },
+      { type: "address" },
+    ],
+    [
+      params.employer,
+      params.recipients as `0x${string}`[],
+      params.shareBps as bigint[],
+      params.durationSeconds,
+      params.taxBps,
+      params.taxVault,
+    ],
+  );
+  return encodeAbiParameters(hookEnvelope, [FUND_BATCH, payload]);
+}
+
+/**
+ * Cross-chain payroll with exact per-employee amounts. The burn carries fee
+ * headroom; the gate opens the streams at their exact sizes and refunds whatever
+ * is left over on Arc.
+ */
+export function encodeFundBatchExactHook(params: {
+  employer: `0x${string}`;
+  recipients: readonly `0x${string}`[];
+  amounts: readonly bigint[];
+  durationSeconds: bigint;
+  taxBps: bigint;
+  taxVault: `0x${string}`;
+}): `0x${string}` {
+  const payload = encodeAbiParameters(
+    [
+      { type: "address" },
+      { type: "address[]" },
+      { type: "uint256[]" },
+      { type: "uint256" },
+      { type: "uint256" },
+      { type: "address" },
+    ],
+    [
+      params.employer,
+      params.recipients as `0x${string}`[],
+      params.amounts as bigint[],
+      params.durationSeconds,
+      params.taxBps,
+      params.taxVault,
+    ],
+  );
+  return encodeAbiParameters(hookEnvelope, [FUND_BATCH_EXACT, payload]);
 }
 
 /** Human label for a CCTP domain id. */

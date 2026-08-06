@@ -124,6 +124,65 @@ export const gateAbi = [
     "stateMutability": "nonpayable"
   },
   {
+    "type": "function",
+    "name": "withdrawToDomain",
+    "inputs": [
+      {
+        "name": "streamId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationDomain",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "destRecipient",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "CrossChainPayrollRun",
+    "inputs": [
+      {
+        "name": "sourceDomain",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "employer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "streamCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "event",
     "name": "CrossChainStreamFunded",
     "inputs": [
@@ -215,9 +274,9 @@ export const gateAbi = [
       },
       {
         "name": "destRecipient",
-        "type": "address",
+        "type": "bytes32",
         "indexed": false,
-        "internalType": "address"
+        "internalType": "bytes32"
       },
       {
         "name": "netAmount",

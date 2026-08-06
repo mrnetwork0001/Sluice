@@ -89,14 +89,14 @@ export default function AutomationPage() {
     <div>
       <PageHeader
         title="Stream-to-DeFi automation"
-        sub="Routing rules run right after each withdrawal — powered by Circle Swap Kit."
+        sub="Set your own rules — any percentage, any supported token. They run automatically right after each withdrawal, powered by Circle Swap Kit."
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle hint={`${enabledPct}% of each withdrawal routed`}>Add a rule</CardTitle>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Percent of withdrawal">
+            <Field label="Percent of withdrawal" hint="Anything from 1 to 100 — your choice">
               <input
                 className={inputClass}
                 value={pct}
@@ -104,7 +104,7 @@ export default function AutomationPage() {
                 placeholder="20"
               />
             </Field>
-            <Field label="Convert to">
+            <Field label="Convert to" hint="Tokens Circle routes on Arc">
               <select
                 className={inputClass}
                 value={tokenOut}
@@ -146,9 +146,18 @@ export default function AutomationPage() {
             )}
           </div>
 
-          <div className="mt-5 space-y-2">
+          <div className="mt-5">
+            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
+              Your rules — click a value to edit
+            </div>
+          </div>
+          <div className="space-y-2">
             {rules.length === 0 ? (
-              <p className="text-sm text-zinc-500">No rules yet.</p>
+              <p className="text-sm text-zinc-500">
+                No rules yet — add one above. Rules are yours to edit: change the percentage or
+                token any time, toggle a rule off, or delete it. With no rules, withdrawals simply
+                arrive as USDC.
+              </p>
             ) : (
               rules.map((rule) => (
                 <div
@@ -175,9 +184,39 @@ export default function AutomationPage() {
                         }`}
                       />
                     </button>
-                    <span className="text-sm text-zinc-200">
-                      Swap <span className="font-mono text-cyan-300">{rule.pct}%</span> of each
-                      withdrawal to <span className="font-mono text-emerald-300">{rule.tokenOut}</span>
+                    <span className="flex flex-wrap items-center gap-1.5 text-sm text-zinc-200">
+                      Swap
+                      <input
+                        aria-label="rule percentage"
+                        className="w-14 rounded-lg border border-white/10 bg-black/40 px-2 py-0.5 text-center font-mono text-sm text-cyan-300 outline-none focus:border-cyan-400/50"
+                        value={rule.pct}
+                        onChange={(event) => {
+                          const next = Math.max(0, Math.min(100, Math.round(Number(event.target.value) || 0)));
+                          update(rules.map((entry) => (entry.id === rule.id ? { ...entry, pct: next } : entry)));
+                        }}
+                      />
+                      <span className="text-cyan-300">%</span>
+                      of each withdrawal to
+                      <select
+                        aria-label="rule token"
+                        className="rounded-lg border border-white/10 bg-black/40 px-2 py-0.5 font-mono text-sm text-emerald-300 outline-none focus:border-cyan-400/50"
+                        value={rule.tokenOut}
+                        onChange={(event) =>
+                          update(
+                            rules.map((entry) =>
+                              entry.id === rule.id
+                                ? { ...entry, tokenOut: event.target.value as AutoToken }
+                                : entry,
+                            ),
+                          )
+                        }
+                      >
+                        {AUTO_TOKENS.map((token) => (
+                          <option key={token} value={token}>
+                            {token}
+                          </option>
+                        ))}
+                      </select>
                     </span>
                   </div>
                   <button

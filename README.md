@@ -239,12 +239,12 @@ insurance pool all run against native USDC:
 
 | | |
 |---|---|
-| **Sluice (core payroll)** | [`0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4`](https://testnet.arcscan.app/address/0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4) |
-| **SluiceGate (CCTP entry/exit)** | [`0xFD1b983519126938A3bB10384C9D4DB932917a2D`](https://testnet.arcscan.app/address/0xFD1b983519126938A3bB10384C9D4DB932917a2D) |
-| **SluiceTreasury (auto-yield)** | [`0x3c0D8e1c1026AA89AA0C375F574990be7A86661E`](https://testnet.arcscan.app/address/0x3c0D8e1c1026AA89AA0C375F574990be7A86661E) |
-| **Arc Reserve Vault (4.2%)** | [`0x49Ec9317FFF9964014F64E4A2fC6F18F14AA3476`](https://testnet.arcscan.app/address/0x49Ec9317FFF9964014F64E4A2fC6F18F14AA3476) |
-| **CCTP Remote Adapter** | [`0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507`](https://testnet.arcscan.app/address/0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507) |
-| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4`](https://sepolia.basescan.org/address/0xC9cF22cb2f5dA2078772A3bBBA4B73c426535ba4) |
+| **Sluice (core payroll)** | [`0x00bAfc819f02DA0DAE3089Eebb233dBFdc327373`](https://testnet.arcscan.app/address/0x00bAfc819f02DA0DAE3089Eebb233dBFdc327373) |
+| **SluiceGate (CCTP entry/exit)** | [`0x3Ae58Ba4A0bF9A02C60a594B53875D141E365257`](https://testnet.arcscan.app/address/0x3Ae58Ba4A0bF9A02C60a594B53875D141E365257) |
+| **SluiceTreasury (auto-yield)** | [`0x4174f47adE8f0cE4F3E761996636FB1E086EE421`](https://testnet.arcscan.app/address/0x4174f47adE8f0cE4F3E761996636FB1E086EE421) |
+| **Arc Reserve Vault (4.2%)** | [`0x9a9e4c3d716329Ae4570EEdbb7F8CCdD5c419B88`](https://testnet.arcscan.app/address/0x9a9e4c3d716329Ae4570EEdbb7F8CCdD5c419B88) |
+| **CCTP Remote Adapter** | [`0xd7582ee8B59c389dFBbc04519d08878594142743`](https://testnet.arcscan.app/address/0xd7582ee8B59c389dFBbc04519d08878594142743) |
+| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507`](https://sepolia.basescan.org/address/0xa9DA412Ef1E58191Be64022e25B920Bc4F3D1507) |
 | Chain ID | `5042002` (`0x4CEF52`) |
 | RPC | `https://rpc.testnet.arc.network` |
 | Explorer | `https://testnet.arcscan.app` |

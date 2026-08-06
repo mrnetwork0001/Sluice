@@ -137,6 +137,7 @@ function StreamDetail({ stream }: { stream: Stream }) {
         {isOwner && !stream.canceled ? <MarketplaceCard stream={stream} /> : null}
         {isOwner && !stream.canceled ? <SplitCard stream={stream} /> : null}
         {isOwner ? <InsuranceCard stream={stream} /> : null}
+        {isEmployer && !stream.canceled ? <TopUpCard stream={stream} /> : null}
         {isEmployer && !stream.canceled ? <EmployerCard stream={stream} /> : null}
         {!isOwner && !isEmployer ? (
           <Card>
@@ -528,6 +529,64 @@ function InsuranceCard({ stream }: { stream: Stream }) {
           </Button>
         </>
       )}
+      <TxBanner status={status} onDismiss={reset} />
+    </Card>
+  );
+}
+
+function TopUpCard({ stream }: { stream: Stream }) {
+  const { send, status, reset, busy } = useSluiceWrite();
+  const [amount, setAmount] = useState("");
+  const parsed = useMemo(() => {
+    try {
+      return parseUsdc(amount);
+    } catch {
+      return undefined;
+    }
+  }, [amount]);
+
+  // The contract credits whole seconds of runway, so preview the exact effect.
+  const addedSeconds =
+    parsed !== undefined && stream.ratePerSecond > 0n ? parsed / stream.ratePerSecond : 0n;
+  const credited = addedSeconds * stream.ratePerSecond;
+
+  return (
+    <Card>
+      <CardTitle hint="recurring payroll">Top up this stream</CardTitle>
+      <p className="mb-3 text-xs leading-relaxed text-zinc-500">
+        Extend the runway instead of opening a new stream each cycle — the per-second rate stays
+        identical and the end date moves out. The employee keeps the same token, schedule, and
+        insurance.
+      </p>
+      <div className="flex gap-2">
+        <input
+          className={inputClass}
+          placeholder="0.00"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+        <Button
+          disabled={busy || parsed === undefined || addedSeconds === 0n}
+          onClick={() =>
+            credited > 0n &&
+            void send({
+              functionName: "topUpStream",
+              args: [stream.id, credited],
+              usdcApproval: credited,
+              label: `Topped up stream #${stream.id.toString()} with ${formatUsdc(credited)} USDC`,
+              onSuccess: () => setAmount(""),
+            })
+          }
+        >
+          Top up
+        </Button>
+      </div>
+      {addedSeconds > 0n ? (
+        <div className="mt-2 text-xs text-zinc-500">
+          Adds <span className="font-mono text-cyan-300">{formatDuration(Number(addedSeconds))}</span>{" "}
+          of runway ({formatUsdc(credited)} USDC credited at the current rate)
+        </div>
+      ) : null}
       <TxBanner status={status} onDismiss={reset} />
     </Card>
   );

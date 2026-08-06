@@ -266,6 +266,78 @@ contract CrossChainTest is Test {
         assertEq(usdcA.balanceOf(lp), 900e6); // full refund on Arc
     }
 
+    // --------------------------------------------------- cross-chain payroll
+
+    function test_CrossChainPayrollByPercentage() public {
+        address[] memory recipients = new address[](2);
+        recipients[0] = employee;
+        recipients[1] = lp;
+        uint256[] memory shares = new uint256[](2);
+        shares[0] = 6_000; // 60%
+        shares[1] = 4_000; // 40%
+
+        bytes memory hook = abi.encode(
+            SluiceHooks.FUND_BATCH, abi.encode(employer, recipients, shares, uint256(30 days), uint256(500), taxVault)
+        );
+        usdcB.approve(address(messengerB), 1_000e6);
+        messengerB.depositForBurnWithHook(
+            1_000e6, ARC, bytes32(uint256(uint160(address(gate)))), address(usdcB), bytes32(0), 1e6, 1000, hook
+        );
+        // Simulate Circle's fee: only 999 USDC actually mints.
+        usdcA.mint(address(gate), 999e6);
+        vm.prank(relayer);
+        gate.onCCTPHook(BASE, 999e6, hook);
+
+        // The split applies to whatever arrived — no failure from the fee.
+        assertEq(sluice.ownerOf(1), employee);
+        assertEq(sluice.ownerOf(2), lp);
+        assertEq(sluice.balanceOf(1), 599.4e6);
+        assertEq(sluice.balanceOf(2), 399.6e6);
+        (address streamEmployer,,,,,,,,,,,,) = sluice.streams(1);
+        assertEq(streamEmployer, employer);
+    }
+
+    function test_CrossChainPayrollExactAmountsRefundsSurplus() public {
+        address[] memory recipients = new address[](2);
+        recipients[0] = employee;
+        recipients[1] = lp;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 300e6;
+        amounts[1] = 200e6;
+
+        bytes memory hook = abi.encode(
+            SluiceHooks.FUND_BATCH_EXACT,
+            abi.encode(employer, recipients, amounts, uint256(30 days), uint256(0), address(0))
+        );
+        // Employer burned 505 with headroom; 503 lands after the fee.
+        usdcA.mint(address(gate), 503e6);
+        vm.prank(relayer);
+        gate.onCCTPHook(BASE, 503e6, hook);
+
+        assertEq(sluice.balanceOf(1), 300e6); // exact amounts honoured
+        assertEq(sluice.balanceOf(2), 200e6);
+        assertEq(usdcA.balanceOf(employer), 1_000_000e6 + 3e6); // surplus refunded
+    }
+
+    function test_CrossChainPayrollRefundsWhenFeeEatsHeadroom() public {
+        address[] memory recipients = new address[](1);
+        recipients[0] = employee;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 500e6;
+
+        bytes memory hook = abi.encode(
+            SluiceHooks.FUND_BATCH_EXACT,
+            abi.encode(employer, recipients, amounts, uint256(30 days), uint256(0), address(0))
+        );
+        usdcA.mint(address(gate), 499e6); // short of the 500 required
+        vm.prank(relayer);
+        gate.onCCTPHook(BASE, 499e6, hook);
+
+        assertEq(usdcA.balanceOf(employer), 1_000_000e6 + 499e6); // fully refunded
+        vm.expectRevert("ERC3525: invalid token");
+        sluice.ownerOf(1); // nothing created
+    }
+
     // --------------------------------------------------- treasury routing
 
     function test_SweepRespectsBuffer() public {
