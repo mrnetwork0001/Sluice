@@ -7,7 +7,7 @@ import { formatUsdc, formatUsdcExact, parseUsdc } from "@/lib/format";
 import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
-  BASE_SIDE,
+  REMOTE_SIDES,
   FINALITY_FAST,
   GATE_ADDRESS,
   addressToBytes32,
@@ -39,7 +39,10 @@ export default function CreateStreamPage() {
   const [durationUnit, setDurationUnit] = useState(86_400);
   const [taxPct, setTaxPct] = useState("8");
   const [taxVault, setTaxVault] = useState("");
-  const [fundFrom, setFundFrom] = useState<"arc" | "base">("arc");
+  // Funding source as a CCTP domain: Arc means a local escrow, anything else
+  // burns on that chain with a FUND_STREAM hook the gate executes on Arc.
+  const [fundFrom, setFundFrom] = useState<number>(ARC_DOMAIN);
+  const fundSide = REMOTE_SIDES.find((side) => side.domain === fundFrom);
 
   const parsedAmount = useMemo(() => {
     try {
@@ -146,18 +149,22 @@ export default function CreateStreamPage() {
             <Field
               label="Fund from"
               hint={
-                fundFrom === "base"
-                  ? "Burns real USDC on Base Sepolia via CCTP v2; Circle attests, the relayer delivers, and the gate opens the stream on Arc (~20s)."
+                fundSide
+                  ? `Burns real USDC on ${fundSide.label} via CCTP v2; Circle attests, the relayer delivers, and the gate opens the stream on Arc (~20s).`
                   : undefined
               }
             >
               <select
                 className={inputClass}
                 value={fundFrom}
-                onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
+                onChange={(event) => setFundFrom(Number(event.target.value))}
               >
-                <option value="arc">This wallet on Arc Testnet</option>
-                <option value="base">This wallet on Base Sepolia - via CCTP</option>
+                <option value={ARC_DOMAIN}>This wallet on Arc Testnet</option>
+                {REMOTE_SIDES.map((side) => (
+                  <option key={side.domain} value={side.domain}>
+                    This wallet on {side.label} - via CCTP
+                  </option>
+                ))}
               </select>
             </Field>
           ) : null}
@@ -189,10 +196,10 @@ export default function CreateStreamPage() {
               const vault = (taxBps === 0
                 ? "0x0000000000000000000000000000000000000000"
                 : taxVault) as `0x${string}`;
-              if (fundFrom === "base" && GATE_ADDRESS) {
+              if (fundSide && GATE_ADDRESS) {
                 void send({
-                  to: { address: BASE_SIDE.messenger, abi: messengerAbi },
-                  chainId: BASE_SIDE.chainId,
+                  to: { address: fundSide.messenger, abi: messengerAbi },
+                  chainId: fundSide.chainId,
                   functionName: "depositForBurnWithHook",
                   // Burn amount + fee headroom so the stream opens at (about) the
                   // requested size after Circle's fast-transfer fee.
@@ -200,7 +207,7 @@ export default function CreateStreamPage() {
                     parsedAmount + fastMaxFee(parsedAmount),
                     ARC_DOMAIN,
                     addressToBytes32(GATE_ADDRESS),
-                    BASE_SIDE.usdc,
+                    fundSide.usdc,
                     hookDestinationCaller(),
                     fastMaxFee(parsedAmount),
                     FINALITY_FAST,
@@ -213,11 +220,11 @@ export default function CreateStreamPage() {
                     }),
                   ],
                   approval: {
-                    token: BASE_SIDE.usdc,
-                    spender: BASE_SIDE.messenger,
+                    token: fundSide.usdc,
+                    spender: fundSide.messenger,
                     amount: parsedAmount + fastMaxFee(parsedAmount),
                   },
-                  label: `Burned ${formatUsdc(parsedAmount)} USDC on Base Sepolia - Circle attests and the stream opens on Arc in ~20s`,
+                  label: `Burned ${formatUsdc(parsedAmount)} USDC on ${fundSide.label} - Circle attests and the stream opens on Arc in ~20s`,
                 });
               } else {
                 void send({
@@ -237,8 +244,8 @@ export default function CreateStreamPage() {
           >
             {busy
               ? "Working…"
-              : fundFrom === "base"
-                ? "Fund from Base via CCTP"
+              : fundSide
+                ? `Fund from ${fundSide.label} via CCTP`
                 : "Escrow & start streaming"}
           </Button>
         </div>
