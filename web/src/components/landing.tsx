@@ -486,20 +486,17 @@ export function Landing() {
           title="From escrow to paycheck in three moves"
           sub="No pay cycles, no batch files, no bank rails. One contract holds the water; the sluice gates do the rest."
         />
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--hairline)] md:grid-cols-3">
           {steps.map((step, index) => (
-            <Reveal key={step.n} delay={index * 90}>
-              <Card className="lift h-full">
-                <div className="font-mono text-sm font-bold text-cyan-400">
-                  {step.n}
+            <Reveal key={step.n} delay={index * 90} className="bg-[var(--panel)]">
+              <div className="group h-full px-5 py-6 transition-colors hover:bg-[var(--panel-raised)]">
+                <div className="flex items-baseline gap-3">
+                  <span className="font-mono text-xs text-cyan-400/70">{step.n}</span>
+                  <span className="h-px flex-1 bg-[var(--hairline)]" />
                 </div>
-                <h3 className="mt-2 text-lg font-semibold text-zinc-100">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-                  {step.body}
-                </p>
-              </Card>
+                <h3 className="mt-4 text-base font-semibold text-zinc-100">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">{step.body}</p>
+              </div>
             </Reveal>
           ))}
         </div>
@@ -512,21 +509,23 @@ export function Landing() {
           title="Income as a programmable asset"
           sub="Five primitives, one ERC-3525 contract. Everything below is live in this build - click through after connecting."
         />
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* A spec sheet, not a card grid: label column, prose, and the actual
+            onchain entry point right-aligned so the claims stay checkable. */}
+        <div className="mt-10 overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)]">
           {features.map((feature, index) => (
-            <Reveal key={feature.title} delay={(index % 3) * 90}>
-              <Card className="lift flex h-full flex-col">
-                <Badge tone="cyan">{feature.tag}</Badge>
-                <h3 className="mt-3 text-base font-semibold text-zinc-100">
-                  {feature.title}
-                </h3>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">
-                  {feature.body}
-                </p>
-                <div className="mt-4 truncate rounded-lg bg-black/30 px-3 py-2 font-mono text-[11px] text-zinc-500">
-                  {feature.fn}
+            <Reveal key={feature.title} delay={Math.min(index, 3) * 70}>
+              <div className="group grid gap-x-6 gap-y-2 border-t border-[var(--hairline)] px-5 py-5 transition-colors first:border-t-0 hover:bg-[var(--panel-raised)] md:grid-cols-[128px_1fr_auto] md:items-baseline">
+                <div className="label pt-0.5 text-cyan-400/70">{feature.tag}</div>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-semibold text-zinc-100">{feature.title}</h3>
+                  <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                    {feature.body}
+                  </p>
                 </div>
-              </Card>
+                <code className="truncate font-mono text-[11px] text-zinc-600 transition-colors group-hover:text-cyan-300/70 md:text-right">
+                  {feature.fn}
+                </code>
+              </div>
             </Reveal>
           ))}
         </div>
@@ -538,25 +537,28 @@ export function Landing() {
           eyebrow="Who it's for"
           title="Three sides of every salary"
         />
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        {/* Columns divided by rules rather than three more boxes. The tick
+            glyphs are replaced by hairline markers - fewer shapes, less noise. */}
+        <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--hairline)] md:grid-cols-3">
           {personas.map((persona, index) => (
-            <Reveal key={persona.title} delay={index * 90}>
-              <Card className="lift h-full">
-                <h3 className="text-base font-semibold text-zinc-100">
-                  {persona.title}
-                </h3>
-                <ul className="mt-3 space-y-2.5">
+            <Reveal key={persona.title} delay={index * 90} className="bg-[var(--panel)]">
+              <div className="h-full px-5 py-6">
+                <h3 className="label text-zinc-300">{persona.title}</h3>
+                <ul className="mt-4 space-y-3">
                   {persona.points.map((point) => (
                     <li
                       key={point}
-                      className="flex gap-2.5 text-sm leading-relaxed text-zinc-400"
+                      className="flex gap-3 text-sm leading-relaxed text-zinc-400"
                     >
-                      <span className="mt-0.5 text-emerald-400">✓</span>
+                      <span
+                        aria-hidden="true"
+                        className="mt-2 h-px w-3 shrink-0 bg-cyan-400/40"
+                      />
                       {point}
                     </li>
                   ))}
                 </ul>
-              </Card>
+              </div>
             </Reveal>
           ))}
         </div>
