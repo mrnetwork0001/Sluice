@@ -26,3 +26,7 @@ web/next-env.d.ts
 
 # CCTP relayer runtime state
 web/scripts/.cctp-relayer-state.json
+
+# Upstream OSS contribution scratch work — kept local, never pushed with Sluice
+circle-oss-contributions/
+*.local-notes.md
