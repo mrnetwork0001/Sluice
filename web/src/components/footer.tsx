@@ -14,6 +14,7 @@ const columns: Array<{ title: string; links: Array<{ label: string; href: string
       { label: "Marketplace", href: "/marketplace" },
       { label: "Treasury", href: "/treasury" },
       { label: "Automation", href: "/automation" },
+      { label: "Get Paid (no wallet)", href: "/onboard" },
     ],
   },
   {

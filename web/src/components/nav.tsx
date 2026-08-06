@@ -11,6 +11,7 @@ const links = [
   { href: "/marketplace", label: "Marketplace" },
   { href: "/treasury", label: "Treasury" },
   { href: "/automation", label: "Automation" },
+  { href: "/onboard", label: "Get Paid" },
 ];
 
 export function Nav() {
