@@ -19,7 +19,7 @@ import {
 import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
-  BASE_SIDE,
+  REMOTE_SIDES,
   FINALITY_FAST,
   GATE_ADDRESS,
   addressToBytes32,
@@ -180,6 +180,9 @@ function ListingCard({ id }: { id: bigint }) {
 }
 
 function Listing({ stream }: { stream: Stream }) {
+  // Which chain to pay from when buying cross-chain. Defaults to the first
+  // remote side; every one of them can burn with a BUY_STREAM hook.
+  const [buySide, setBuySide] = useState(REMOTE_SIDES[0]!);
   const { address } = useAccount();
   const chainId = useChainId();
   const canCrossChain = crossChainEnabled(chainId);
@@ -282,8 +285,8 @@ function Listing({ stream }: { stream: Stream }) {
                   address &&
                   GATE_ADDRESS &&
                   void send({
-                    to: { address: BASE_SIDE.messenger, abi: messengerAbi },
-                    chainId: BASE_SIDE.chainId,
+                    to: { address: buySide.messenger, abi: messengerAbi },
+                    chainId: buySide.chainId,
                     functionName: "depositForBurnWithHook",
                     // Burn price + fee headroom: Circle deducts the fast-transfer
                     // fee from the mint, and the gate refunds any excess on Arc.
@@ -291,23 +294,41 @@ function Listing({ stream }: { stream: Stream }) {
                       stream.salePrice + fastMaxFee(stream.salePrice),
                       ARC_DOMAIN,
                       addressToBytes32(GATE_ADDRESS),
-                      BASE_SIDE.usdc,
+                      buySide.usdc,
                       hookDestinationCaller(),
                       fastMaxFee(stream.salePrice),
                       FINALITY_FAST,
                       encodeBuyStreamHook(address, stream.id),
                     ],
                     approval: {
-                      token: BASE_SIDE.usdc,
-                      spender: BASE_SIDE.messenger,
+                      token: buySide.usdc,
+                      spender: buySide.messenger,
                       amount: stream.salePrice + fastMaxFee(stream.salePrice),
                     },
-                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base Sepolia - Circle attests and the gate settles the purchase on Arc in ~20s`,
+                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on ${buySide.label} - Circle attests and the gate settles the purchase on Arc in ~20s`,
                   })
                 }
               >
-                Buy from Base Sepolia via CCTP ⚡
+                Buy from {buySide.label} via CCTP ⚡
               </Button>
+            ) : null}
+            {canCrossChain && GATE_ADDRESS ? (
+              <select
+                className={`${inputClass} mt-2 text-xs`}
+                value={buySide.domain}
+                onChange={(event) =>
+                  setBuySide(
+                    REMOTE_SIDES.find((side) => side.domain === Number(event.target.value)) ??
+                      REMOTE_SIDES[0]!,
+                  )
+                }
+              >
+                {REMOTE_SIDES.map((side) => (
+                  <option key={side.domain} value={side.domain}>
+                    Pay from {side.label}
+                  </option>
+                ))}
+              </select>
             ) : null}
           </>
         )}

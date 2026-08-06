@@ -9,7 +9,7 @@ import { UnifiedBalancePanel } from "@/components/unified-balance";
 import { useChainId } from "wagmi";
 import {
   ARC_DOMAIN,
-  BASE_SIDE,
+  REMOTE_SIDES,
   FINALITY_FAST,
   GATE_ADDRESS,
   addressToBytes32,
@@ -113,7 +113,9 @@ export default function PayrollPage() {
 
   const [mode, setMode] = useState<AllocationMode>("amount");
   const [budget, setBudget] = useState("");
-  const [fundFrom, setFundFrom] = useState<"arc" | "base">("arc");
+  // CCTP domain of the funding source; Arc means a local escrow.
+  const [fundFrom, setFundFrom] = useState<number>(ARC_DOMAIN);
+  const fundSide = REMOTE_SIDES.find((side) => side.domain === fundFrom);
   const [roster, setRoster] = useState("");
   const [durationValue, setDurationValue] = useState("30");
   const [durationUnit, setDurationUnit] = useState(86_400);
@@ -133,7 +135,7 @@ export default function PayrollPage() {
   const total = mode === "percent" ? parsedBudget : valid.reduce((sum, row) => sum + (row.amount ?? 0n), 0n);
   const chainId = useChainId();
   const canCrossChain = crossChainEnabled(chainId);
-  const crossChainRun = canCrossChain && fundFrom === "base";
+  const crossChainRun = canCrossChain && fundSide !== undefined;
 
   const durationSeconds = Math.floor(Number(durationValue || 0) * durationUnit);
   const taxBps = Math.round(Number(taxPct || 0) * 100);
@@ -329,15 +331,19 @@ export default function PayrollPage() {
               <select
                 className={inputClass}
                 value={fundFrom}
-                onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
+                onChange={(event) => setFundFrom(Number(event.target.value))}
               >
-                <option value="arc">This wallet on Arc Testnet</option>
-                <option value="base">Treasury on Base Sepolia - via CCTP</option>
+                <option value={ARC_DOMAIN}>This wallet on Arc Testnet</option>
+                {REMOTE_SIDES.map((side) => (
+                  <option key={side.domain} value={side.domain}>
+                    Treasury on {side.label} - via CCTP
+                  </option>
+                ))}
               </select>
-              {fundFrom === "base" ? (
+              {fundSide ? (
                 <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                  One burn on Base Sepolia funds the entire run; Circle attests and the gate opens
-                  every stream on Arc.{" "}
+                  One burn on {fundSide.label} funds the entire run; Circle attests and the gate
+                  opens every stream on Arc.{" "}
                   {mode === "percent" ? (
                     <>
                       CCTP deducts a transfer fee, so the exact arriving amount is unknown when you
@@ -386,14 +392,14 @@ export default function PayrollPage() {
                   : taxVault) as `0x${string}`;
                 if (crossChainRun && GATE_ADDRESS && address) {
                   void send({
-                    to: { address: BASE_SIDE.messenger, abi: messengerAbi },
-                    chainId: BASE_SIDE.chainId,
+                    to: { address: fundSide.messenger, abi: messengerAbi },
+                    chainId: fundSide.chainId,
                     functionName: "depositForBurnWithHook",
                     args: [
                       total + fastMaxFee(total),
                       ARC_DOMAIN,
                       addressToBytes32(GATE_ADDRESS),
-                      BASE_SIDE.usdc,
+                      fundSide.usdc,
                       hookDestinationCaller(),
                       fastMaxFee(total),
                       FINALITY_FAST,
@@ -416,11 +422,11 @@ export default function PayrollPage() {
                           }),
                     ],
                     approval: {
-                      token: BASE_SIDE.usdc,
-                      spender: BASE_SIDE.messenger,
+                      token: fundSide.usdc,
+                      spender: fundSide.messenger,
                       amount: total + fastMaxFee(total),
                     },
-                    label: `Burned ${formatUsdc(total)} USDC on Base Sepolia - ${valid.length} streams open on Arc once Circle attests`,
+                    label: `Burned ${formatUsdc(total)} USDC on ${fundSide.label} - ${valid.length} streams open on Arc once Circle attests`,
                   });
                   return;
                 }
