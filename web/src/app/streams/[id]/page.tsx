@@ -13,7 +13,6 @@ import {
   SOLANA_DOMAIN,
   crossChainEnabled,
   domainLabel,
-  solanaAddressToBytes32,
 } from "@/lib/crosschain";
 import { useChainId } from "wagmi";
 import { gateAbi } from "@/lib/gateAbi";
@@ -171,7 +170,6 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   // Payout destination as a CCTP domain: Arc means a local withdrawal, any
   // other domain burns through the gate. Solana is domain-only (no chain id).
   const [dest, setDest] = useState<number>(ARC_DOMAIN);
-  const [solanaAddress, setSolanaAddress] = useState("");
   const [triggers, setTriggers] = useState<TriggerLogEntry[]>([]);
 
   const parsed = useMemo(() => {
@@ -184,7 +182,6 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   const tax = parsed !== undefined ? (parsed * BigInt(stream.taxBps)) / 10_000n : undefined;
   const activeRules = address ? loadRules(address).filter((rule) => rule.enabled) : [];
   const crossChain = canCrossChain && dest !== ARC_DOMAIN;
-  const toSolana = crossChain && dest === SOLANA_DOMAIN;
 
   return (
     <Card>
@@ -213,16 +210,18 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
                 Pay out on {side.label} - via CCTP
               </option>
             ))}
-            <option value={SOLANA_DOMAIN}>Pay out on Solana Devnet - via CCTP</option>
+            {/*
+              Solana is deliberately NOT offered yet. CCTP on Solana requires
+              mintRecipient to be the recipient's Associated Token Account, not
+              their wallet pubkey - the program asserts
+              recipient_token_account.key() == mint_recipient. Burning to a raw
+              wallet key produces USDC that can never be minted. Re-enable only
+              once the relayer derives the ATA and can deliver it.
+            */}
+            <option value={SOLANA_DOMAIN} disabled>
+              Solana Devnet - delivery not wired yet
+            </option>
           </select>
-          {toSolana ? (
-            <input
-              value={solanaAddress}
-              onChange={(event) => setSolanaAddress(event.target.value)}
-              placeholder="Your Solana address (base58)"
-              className={`${inputClass} mt-2 font-mono`}
-            />
-          ) : null}
         </div>
       ) : null}
       {parsed !== undefined && tax !== undefined && parsed > 0n ? (
@@ -243,9 +242,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
             busy ||
             parsed === undefined ||
             parsed === 0n ||
-            parsed > available ||
-            // Never burn to a Solana address that could not receive the mint.
-            (toSolana && !solanaAddressToBytes32(solanaAddress))
+            parsed > available
           }
           onClick={() => {
             if (parsed === undefined || !address) return;
@@ -259,21 +256,11 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
                 label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net exiting to ${domainLabel(dest)} via CCTP`,
                 onSuccess: () => setAmount(""),
               };
-              if (toSolana) {
-                const recipient = solanaAddressToBytes32(solanaAddress);
-                if (!recipient) return;
-                void send({
-                  ...common,
-                  functionName: "withdrawToDomain",
-                  args: [stream.id, parsed, dest, recipient],
-                });
-              } else {
-                void send({
-                  ...common,
-                  functionName: "withdrawToChain",
-                  args: [stream.id, parsed, dest, address],
-                });
-              }
+              void send({
+                ...common,
+                functionName: "withdrawToChain",
+                args: [stream.id, parsed, dest, address],
+              });
             } else {
               void send({
                 functionName: "withdrawFromStream",
