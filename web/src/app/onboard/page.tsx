@@ -24,6 +24,14 @@ interface CircleWallet {
 
 const STORAGE_KEY = "sluice.circleUserId";
 
+/**
+ * Circle provisions the wallet asynchronously: the PIN challenge resolves before
+ * listWallets can see it. Polling here is what makes the address actually appear -
+ * a single fetch races the provisioning and comes back empty.
+ */
+const POLL_INTERVAL_MS = 1_500;
+const POLL_TIMEOUT_MS = 60_000;
+
 async function api<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch("/api/wallet", {
     method: "POST",
@@ -65,13 +73,32 @@ export default function OnboardPage() {
     refresh(userId).catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [userId]);
 
+  /** Poll until Circle reports the provisioned wallet, or we give up. */
+  const waitForWallet = async (userToken: string): Promise<CircleWallet[]> => {
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    for (let attempt = 1; ; attempt += 1) {
+      const result = await api<{ wallets: CircleWallet[] }>("wallets", { userToken });
+      const found = result.wallets ?? [];
+      if (found.length > 0) {
+        setWallets(found);
+        return found;
+      }
+      if (Date.now() >= deadline) return found;
+      setStatus(`Circle is provisioning your wallet on Arc… (${attempt})`);
+      await new Promise((done) => setTimeout(done, POLL_INTERVAL_MS));
+    }
+  };
+
   /** Create the Circle user, then run the PIN challenge that mints the wallet. */
   const startOnboarding = async () => {
     setBusy(true);
     setError(undefined);
     try {
       setStatus("Creating your Circle account…");
-      const created = await api<{ userId: string }>("createUser");
+      // Resume the saved user rather than minting a new one. Creating a fresh
+      // user on every attempt strands the wallet made by the previous attempt.
+      const saved = window.localStorage.getItem(STORAGE_KEY) ?? undefined;
+      const created = await api<{ userId: string }>("createUser", saved ? { userId: saved } : {});
       window.localStorage.setItem(STORAGE_KEY, created.userId);
       setUserId(created.userId);
 
@@ -94,13 +121,29 @@ export default function OnboardPage() {
             reject(new Error(sdkError.message ?? "Wallet setup was cancelled"));
             return;
           }
-          void result;
+          // The callback can fire with no result, and a non-COMPLETE status is a
+          // failure the SDK does not report through sdkError.
+          if (!result) {
+            reject(new Error("Circle returned no challenge result. Please try again."));
+            return;
+          }
+          const state = String(result.status);
+          if (state !== "COMPLETE") {
+            reject(new Error(`Wallet setup did not complete (status: ${state}).`));
+            return;
+          }
           resolve();
         });
       });
 
       setStatus("Wallet created - fetching your address…");
-      await refresh(created.userId);
+      const found = await waitForWallet(fresh.userToken);
+      if (found.length === 0) {
+        throw new Error(
+          "Your PIN is set, but Circle has not published the wallet yet. It is still being " +
+            "provisioned - reload this page in a moment and it will appear.",
+        );
+      }
       setStatus(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
