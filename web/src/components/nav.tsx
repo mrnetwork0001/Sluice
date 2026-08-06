@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "./connect-button";
@@ -20,10 +21,15 @@ export function Nav() {
     <header className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0b0e14]/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-lg font-black tracking-tight text-transparent">
-              SLUICE
-            </span>
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/sluice-wordmark.png"
+              alt="Sluice"
+              width={306}
+              height={96}
+              priority
+              className="h-7 w-auto"
+            />
             <span className="hidden rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 ring-1 ring-inset ring-white/10 md:inline">
               Payroll on Arc
             </span>

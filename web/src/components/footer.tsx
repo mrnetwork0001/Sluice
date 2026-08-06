@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import arcDeployment from "@/lib/deployments.5042002.json";
 
@@ -60,12 +61,13 @@ export function Footer() {
         <div className="grid gap-10 lg:grid-cols-2">
           {/* Brand */}
           <div className="max-w-sm">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 text-sm font-black text-zinc-950">
-                S
-              </span>
-              <span className="text-lg font-black tracking-tight text-zinc-100">Sluice</span>
-            </div>
+            <Image
+              src="/sluice-wordmark.png"
+              alt="Sluice"
+              width={306}
+              height={96}
+              className="h-8 w-auto"
+            />
             <p className="mt-4 text-sm leading-relaxed text-zinc-500">
               Streaming USDC payroll on Arc. Salaries vest every second, taxes split
               themselves, and future income becomes a liquid, insurable asset.
