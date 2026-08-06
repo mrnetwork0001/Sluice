@@ -39,6 +39,28 @@ export function gatewayChainLabel(chain: string): string {
   return chain.replace(/_Testnet$/, "").replace(/_/g, " ");
 }
 
+/** Wallet chain id -> the identifier Gateway expects, for deposits. */
+export function gatewayChainForId(chainId: number | undefined): GatewayChain | undefined {
+  switch (chainId) {
+    case 5042002:
+      return "Arc_Testnet";
+    case 84532:
+      return "Base_Sepolia";
+    case 11155111:
+      return "Ethereum_Sepolia";
+    case 43113:
+      return "Avalanche_Fuji";
+    case 421614:
+      return "Arbitrum_Sepolia";
+    case 11155420:
+      return "Optimism_Sepolia";
+    case 80002:
+      return "Polygon_Amoy_Testnet";
+    default:
+      return undefined;
+  }
+}
+
 export interface ChainBalance {
   chain: string;
   confirmed: string;
