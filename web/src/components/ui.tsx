@@ -248,11 +248,20 @@ export function ProgressBar({ pct, tone = "flow" }: { pct: number; tone?: "flow"
       <div
         className={
           tone === "flow"
-            ? "h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-[width] duration-1000 ease-linear"
+            ? "relative h-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-[width] duration-1000 ease-linear"
             : "h-full rounded-full bg-zinc-600 transition-[width] duration-1000 ease-linear"
         }
         style={{ width: `${clamped}%` }}
-      />
+      >
+        {/* A highlight travelling along the filled portion: the bar reads as
+            money moving rather than a static percentage. */}
+        {tone === "flow" && clamped > 0 ? (
+          <span
+            aria-hidden="true"
+            className="shimmer absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent"
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

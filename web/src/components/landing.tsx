@@ -8,6 +8,7 @@ import { sluiceAbi } from "@/lib/sluice";
 import { formatUsdc } from "@/lib/format";
 import { arcTestnet } from "@/lib/arc";
 import { Badge, Card, ProgressBar } from "./ui";
+import { Reveal } from "./reveal";
 
 /* ------------------------------------------------------------------ hero demo */
 
@@ -19,7 +20,9 @@ function LiveStreamDemo() {
   const [streamed, setStreamed] = useState(1_284_000_000n); // start mid-stream
   useEffect(() => {
     const timer = setInterval(() => {
-      setStreamed((value) => (value + DEMO_RATE >= DEMO_TARGET ? 1_284_000_000n : value + DEMO_RATE));
+      setStreamed((value) =>
+        value + DEMO_RATE >= DEMO_TARGET ? 1_284_000_000n : value + DEMO_RATE,
+      );
     }, 1_000);
     return () => clearInterval(timer);
   }, []);
@@ -31,7 +34,9 @@ function LiveStreamDemo() {
     <Card className="relative overflow-hidden border-cyan-400/20 bg-gradient-to-b from-cyan-400/[0.06] to-transparent">
       <div className="flex items-start justify-between">
         <div>
-          <div className="font-mono text-xs text-zinc-500">Stream #1 · monthly salary</div>
+          <div className="font-mono text-xs text-zinc-500">
+            Stream #1 · monthly salary
+          </div>
           <div className="mt-0.5 text-sm text-zinc-400">
             0xf39F…2266 → <span className="text-zinc-200">0x7099…79C8</span>
           </div>
@@ -43,7 +48,9 @@ function LiveStreamDemo() {
       </div>
 
       <div className="mt-5">
-        <div className="text-xs uppercase tracking-wider text-zinc-500">Streamed so far</div>
+        <div className="text-xs uppercase tracking-wider text-zinc-500">
+          Streamed so far
+        </div>
         <div className="mt-1 font-mono text-4xl font-semibold tabular-nums text-zinc-50">
           {formatUsdc(streamed, 6)}
           <span className="ml-2 text-base text-zinc-500">USDC</span>
@@ -61,7 +68,9 @@ function LiveStreamDemo() {
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-4 text-xs">
         <div>
           <div className="text-zinc-500">Tax auto-split (8%)</div>
-          <div className="mt-0.5 font-mono tabular-nums text-zinc-300">{formatUsdc(tax)} USDC</div>
+          <div className="mt-0.5 font-mono tabular-nums text-zinc-300">
+            {formatUsdc(tax)} USDC
+          </div>
         </div>
         <div>
           <div className="text-zinc-500">Auto-trigger</div>
@@ -74,13 +83,25 @@ function LiveStreamDemo() {
 
 /* ------------------------------------------------------------------ sections */
 
-function SectionHeading({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
+function SectionHeading({
+  eyebrow,
+  title,
+  sub,
+}: {
+  eyebrow: string;
+  title: string;
+  sub?: string;
+}) {
   return (
-    <div className="mx-auto max-w-2xl text-center">
-      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">{eyebrow}</div>
-      <h2 className="mt-2 text-3xl font-bold tracking-tight text-zinc-50">{title}</h2>
+    <Reveal className="mx-auto max-w-2xl text-center">
+      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+        {eyebrow}
+      </div>
+      <h2 className="mt-2 text-3xl font-bold tracking-tight text-zinc-50">
+        {title}
+      </h2>
       {sub ? <p className="mt-3 text-zinc-400">{sub}</p> : null}
-    </div>
+    </Reveal>
   );
 }
 
@@ -191,7 +212,12 @@ export function Landing() {
   const { data: streamRefs } = useStreamIds();
   // Loosely typed call list: wagmi's generic inference blows its depth limit on a
   // heterogeneous batch this size.
-  const metricCalls = ["totalEscrowed", "totalSettled", "totalTaxWithheld", "totalStreams"];
+  const metricCalls = [
+    "totalEscrowed",
+    "totalSettled",
+    "totalTaxWithheld",
+    "totalStreams",
+  ];
   const { data: metrics } = useReadContracts({
     contracts: sluice
       ? metricCalls.map((functionName) => ({
@@ -205,7 +231,9 @@ export function Landing() {
     query: { enabled: Boolean(sluice), refetchInterval: 10_000 },
   });
   const readMetric = (index: number): bigint | undefined => {
-    const entry = (metrics as ReadonlyArray<{ status: string; result?: unknown }> | undefined)?.[index];
+    const entry = (
+      metrics as ReadonlyArray<{ status: string; result?: unknown }> | undefined
+    )?.[index];
     return entry?.status === "success" ? (entry.result as bigint) : undefined;
   };
   const escrowed = readMetric(0);
@@ -216,20 +244,26 @@ export function Landing() {
   return (
     <div className="pb-10">
       {/* Hero */}
-      <section className="grid items-center gap-10 py-12 lg:grid-cols-2 lg:py-16">
-        <div>
+      <section className="relative grid items-center gap-10 py-12 lg:grid-cols-2 lg:py-16">
+        {/* Slow-drifting aurora. Sits behind everything and never intercepts
+            pointer events, so it cannot interfere with the CTAs. */}
+        <div
+          aria-hidden="true"
+          className="drift pointer-events-none absolute -top-24 right-0 -z-10 h-[420px] w-[560px] rounded-full bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),rgba(52,211,153,0.08)_45%,transparent_70%)] blur-2xl"
+        />
+        <Reveal>
           <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-zinc-50">
             Payroll that{" "}
-            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            <span className="sheen bg-gradient-to-r from-cyan-400 via-emerald-300 to-cyan-400 bg-clip-text text-transparent">
               flows
             </span>
             ,<br />
             block by block.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-relaxed text-zinc-400">
-            Sluice streams USDC salaries every second on Arc. Taxes split themselves, future
-            income becomes a sellable asset, and a staked pool insures every paycheck against
-            employer default.
+            Sluice streams USDC salaries every second on Arc. Taxes split
+            themselves, future income becomes a sellable asset, and a staked
+            pool insures every paycheck against employer default.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link href="/dashboard" className={primaryLinkClass}>
@@ -256,8 +290,10 @@ export function Landing() {
               and connect any EVM wallet.
             </p>
           ) : null}
-        </div>
-        <LiveStreamDemo />
+        </Reveal>
+        <Reveal delay={120}>
+          <LiveStreamDemo />
+        </Reveal>
       </section>
 
       {/* Live stats */}
@@ -280,7 +316,9 @@ export function Landing() {
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-zinc-50">
-            {streamCount !== undefined ? streamCount.toString() : (streamRefs?.length ?? "-")}
+            {streamCount !== undefined
+              ? streamCount.toString()
+              : (streamRefs?.length ?? "-")}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
             salary streams opened
@@ -304,12 +342,20 @@ export function Landing() {
           sub="No pay cycles, no batch files, no bank rails. One contract holds the water; the sluice gates do the rest."
         />
         <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {steps.map((step) => (
-            <Card key={step.n}>
-              <div className="font-mono text-sm font-bold text-cyan-400">{step.n}</div>
-              <h3 className="mt-2 text-lg font-semibold text-zinc-100">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{step.body}</p>
-            </Card>
+          {steps.map((step, index) => (
+            <Reveal key={step.n} delay={index * 90}>
+              <Card className="lift h-full">
+                <div className="font-mono text-sm font-bold text-cyan-400">
+                  {step.n}
+                </div>
+                <h3 className="mt-2 text-lg font-semibold text-zinc-100">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                  {step.body}
+                </p>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -322,35 +368,51 @@ export function Landing() {
           sub="Five primitives, one ERC-3525 contract. Everything below is live in this build - click through after connecting."
         />
         <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <Card key={feature.title} className="flex flex-col">
-              <Badge tone="cyan">{feature.tag}</Badge>
-              <h3 className="mt-3 text-base font-semibold text-zinc-100">{feature.title}</h3>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">{feature.body}</p>
-              <div className="mt-4 truncate rounded-lg bg-black/30 px-3 py-2 font-mono text-[11px] text-zinc-500">
-                {feature.fn}
-              </div>
-            </Card>
+          {features.map((feature, index) => (
+            <Reveal key={feature.title} delay={(index % 3) * 90}>
+              <Card className="lift flex h-full flex-col">
+                <Badge tone="cyan">{feature.tag}</Badge>
+                <h3 className="mt-3 text-base font-semibold text-zinc-100">
+                  {feature.title}
+                </h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">
+                  {feature.body}
+                </p>
+                <div className="mt-4 truncate rounded-lg bg-black/30 px-3 py-2 font-mono text-[11px] text-zinc-500">
+                  {feature.fn}
+                </div>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* Personas */}
       <section className="py-16">
-        <SectionHeading eyebrow="Who it's for" title="Three sides of every salary" />
+        <SectionHeading
+          eyebrow="Who it's for"
+          title="Three sides of every salary"
+        />
         <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {personas.map((persona) => (
-            <Card key={persona.title}>
-              <h3 className="text-base font-semibold text-zinc-100">{persona.title}</h3>
-              <ul className="mt-3 space-y-2.5">
-                {persona.points.map((point) => (
-                  <li key={point} className="flex gap-2.5 text-sm leading-relaxed text-zinc-400">
-                    <span className="mt-0.5 text-emerald-400">✓</span>
-                    {point}
-                  </li>
-                ))}
-              </ul>
-            </Card>
+          {personas.map((persona, index) => (
+            <Reveal key={persona.title} delay={index * 90}>
+              <Card className="lift h-full">
+                <h3 className="text-base font-semibold text-zinc-100">
+                  {persona.title}
+                </h3>
+                <ul className="mt-3 space-y-2.5">
+                  {persona.points.map((point) => (
+                    <li
+                      key={point}
+                      className="flex gap-2.5 text-sm leading-relaxed text-zinc-400"
+                    >
+                      <span className="mt-0.5 text-emerald-400">✓</span>
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -362,7 +424,10 @@ export function Landing() {
         </div>
         <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
           {rails.map(([name, detail]) => (
-            <div key={name} className="flex items-baseline justify-center gap-2 text-sm">
+            <div
+              key={name}
+              className="flex items-baseline justify-center gap-2 text-sm"
+            >
               <span className="font-semibold text-zinc-200">{name}</span>
               <span className="text-zinc-500">· {detail}</span>
             </div>
@@ -373,7 +438,11 @@ export function Landing() {
       {/* CTA */}
       <section className="py-16 text-center">
         <h2 className="text-3xl font-bold tracking-tight text-zinc-50">
-          Open the <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">sluice</span>.
+          Open the{" "}
+          <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            sluice
+          </span>
+          .
         </h2>
         <p className="mx-auto mt-3 max-w-md text-zinc-400">
           Open the app to stream your first salary, trade future income on the

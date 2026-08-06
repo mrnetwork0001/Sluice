@@ -18,3 +18,106 @@ body {
 ::selection {
   background: rgba(34, 211, 238, 0.3);
 }
+
+/* ------------------------------------------------------------------ motion
+   Only transform/opacity is animated, so everything stays on the compositor
+   and never triggers layout. Each effect is opt-in via a class, and the whole
+   file is neutralised under prefers-reduced-motion at the bottom. */
+
+@keyframes sluice-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Slow drift behind the hero, so the page breathes without anything moving
+   fast enough to pull the eye off the copy. */
+@keyframes sluice-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) scale(1.04);
+    opacity: 0.8;
+  }
+}
+
+/* Light sweeping across the wordmark gradient - a single pass, not a loop. */
+@keyframes sluice-sheen {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+/* Highlight travelling along a progress bar: money moving, rendered literally. */
+@keyframes sluice-shimmer {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(400%, 0, 0);
+  }
+}
+
+.reveal {
+  opacity: 0;
+}
+
+.reveal-in {
+  animation: sluice-fade-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.drift {
+  animation: sluice-drift 11s ease-in-out infinite;
+}
+
+.sheen {
+  background-size: 200% auto;
+  animation: sluice-sheen 6s linear infinite;
+}
+
+.shimmer {
+  animation: sluice-shimmer 2.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Cards lift slightly toward the pointer. Border brightening does the real
+   work; the translate is small enough to read as focus, not bounce. */
+.lift {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.lift:hover {
+  transform: translate3d(0, -3px, 0);
+  border-color: rgba(34, 211, 238, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-in {
+    opacity: 1;
+    animation: none;
+  }
+
+  .drift,
+  .sheen,
+  .shimmer {
+    animation: none;
+  }
+
+  .lift:hover {
+    transform: none;
+  }
+}
