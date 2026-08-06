@@ -307,7 +307,7 @@ dev.sh                   one-command twin-chain demo
 | Settlement | **Arc L1** - USDC gas, sub-second finality |
 | Contracts | Solidity 0.8.x, Foundry (via-IR), vendored ERC-3525 |
 | Cross-chain | **CCTP v2 pattern** (burn/mint + hooks), local attestation relayer |
-| Stablecoin tooling | **Circle Swap Kit** (auto-conversion), **App Kit**, **Bridge Kit** + `provider-cctp-v2` (installed, testnet-ready), **Unified Balance Kit** |
+| Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Earn Kit** (real Morpho vault yield), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding) |
 | Frontend | Next.js 16 (App Router), wagmi v3, viem, TanStack Query, Tailwind v4 |
 | Quality | 26 Foundry tests, GitHub Actions CI (fmt + build + test), Playwright-driven E2E verification |
 
