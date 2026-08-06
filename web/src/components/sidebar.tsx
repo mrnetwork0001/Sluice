@@ -271,17 +271,12 @@ export function SidebarContent({
         })}
       </nav>
 
-      <div className={`mt-6 ${collapsed ? "px-2" : "px-3"}`}>
-        {collapsed ? <CollapsedConnection /> : <ConnectionCard />}
-      </div>
-
       <div className="flex-1" />
 
-      {!collapsed ? (
-        <p className="px-4 pb-4 text-[10px] leading-relaxed text-zinc-600">
-          Arc Testnet · chain {arcTestnet.id} · gas paid in USDC
-        </p>
-      ) : null}
+      {/* Wallet lives at the bottom of the rail, out of the navigation flow. */}
+      <div className={`mt-6 pb-4 ${collapsed ? "px-2" : "px-3"}`}>
+        {collapsed ? <CollapsedConnection /> : <ConnectionCard />}
+      </div>
     </div>
   );
 }
