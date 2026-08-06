@@ -1,18 +1,62 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-ui);
+  --font-mono: var(--font-mono-ui);
+  --font-display: var(--font-display);
+}
+
+/* One accent, used sparingly. The previous cyan->emerald gradient carried the
+   identity on headings, buttons and the logo at once, which is the fastest way
+   to look like every other dark crypto template. Colour now marks numbers and
+   state; type and rules do the rest. */
+:root {
+  --surface: #0a0c11;
+  --panel: #101319;
+  --panel-raised: #141821;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --accent: #22d3ee;
+  --positive: #34d399;
 }
 
 body {
+  /* A faint engineering grid instead of coloured blooms: this is a treasury
+     product, and the backdrop should read as ruled paper, not a gradient. */
   background:
-    radial-gradient(1200px 500px at 15% -10%, rgba(34, 211, 238, 0.07), transparent 60%),
-    radial-gradient(1000px 500px at 90% 0%, rgba(52, 211, 153, 0.06), transparent 60%),
-    #0b0e14;
-  color: #e4e4e7;
-  font-family: var(--font-sans), system-ui, sans-serif;
+    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px) 0 0 / 100% 32px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px) 0 0 / 32px 100%,
+    radial-gradient(900px 420px at 78% -8%, rgba(34, 211, 238, 0.05), transparent 65%),
+    var(--surface);
+  color: #d7dae0;
+  font-family: var(--font-sans-ui), system-ui, sans-serif;
+  font-feature-settings: "cv05" 1;
   min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), var(--font-sans-ui), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Every figure in this product sits in a column next to another figure. */
+.font-mono,
+code,
+pre {
+  font-family: var(--font-mono-ui), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small caps label used above sections and on table headers. */
+.label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
 }
 
 ::selection {

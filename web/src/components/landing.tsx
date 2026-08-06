@@ -93,14 +93,10 @@ function SectionHeading({
   sub?: string;
 }) {
   return (
-    <Reveal className="mx-auto max-w-2xl text-center">
-      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
-        {eyebrow}
-      </div>
-      <h2 className="mt-2 text-3xl font-bold tracking-tight text-zinc-50">
-        {title}
-      </h2>
-      {sub ? <p className="mt-3 text-zinc-400">{sub}</p> : null}
+    <Reveal className="max-w-2xl border-t border-[var(--hairline)] pt-6">
+      <div className="label text-cyan-400/80">{eyebrow}</div>
+      <h2 className="mt-2 text-[1.75rem] font-semibold leading-tight text-zinc-50">{title}</h2>
+      {sub ? <p className="mt-2.5 text-[15px] leading-relaxed text-zinc-400">{sub}</p> : null}
     </Reveal>
   );
 }
@@ -204,7 +200,7 @@ const rails = [
 /* ------------------------------------------------------------------ page */
 
 const primaryLinkClass =
-  "rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:from-cyan-400 hover:to-emerald-400";
+  "rounded-md bg-cyan-400 px-4 py-2.5 text-sm font-medium text-[#06121a] transition-colors hover:bg-cyan-300";
 
 export function Landing() {
   const { isConnected } = useAccount();
@@ -252,10 +248,18 @@ export function Landing() {
           className="drift pointer-events-none absolute -top-24 right-0 -z-10 h-[420px] w-[560px] rounded-full bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),rgba(52,211,153,0.08)_45%,transparent_70%)] blur-2xl"
         />
         <Reveal>
-          <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-zinc-50">
+          <div className="label mb-5 flex items-center gap-2">
+            <span className="h-1 w-1 rounded-full bg-cyan-400" />
+            Streaming payroll · Arc L1
+          </div>
+          <h1 className="text-[3.25rem] font-semibold leading-[1.02] text-zinc-50">
             Payroll that{" "}
-            <span className="sheen bg-gradient-to-r from-cyan-400 via-emerald-300 to-cyan-400 bg-clip-text text-transparent">
+            <span className="relative whitespace-nowrap text-cyan-300">
               flows
+              <span
+                aria-hidden="true"
+                className="absolute -bottom-1 left-0 h-px w-full bg-cyan-400/50"
+              />
             </span>
             ,<br />
             block by block.
@@ -437,12 +441,8 @@ export function Landing() {
 
       {/* CTA */}
       <section className="py-16 text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-zinc-50">
-          Open the{" "}
-          <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-            sluice
-          </span>
-          .
+        <h2 className="text-[1.75rem] font-semibold text-zinc-50">
+          Open the <span className="text-cyan-300">sluice</span>.
         </h2>
         <p className="mx-auto mt-3 max-w-md text-zinc-400">
           Open the app to stream your first salary, trade future income on the

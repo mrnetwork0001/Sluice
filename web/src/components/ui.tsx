@@ -14,7 +14,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5 backdrop-blur-sm ${className}`}
+      className={`rounded-lg border border-[var(--hairline)] bg-[var(--panel)] p-5 ${className}`}
     >
       {children}
     </div>
@@ -23,9 +23,9 @@ export function Card({
 
 export function CardTitle({ children, hint }: { children: ReactNode; hint?: string }) {
   return (
-    <div className="mb-4 flex items-baseline justify-between gap-3">
-      <h3 className="text-sm font-semibold tracking-wide text-zinc-200">{children}</h3>
-      {hint ? <span className="text-xs text-zinc-500">{hint}</span> : null}
+    <div className="mb-4 flex items-baseline justify-between gap-3 border-b border-[var(--hairline)] pb-3">
+      <h3 className="label text-zinc-300">{children}</h3>
+      {hint ? <span className="text-xs text-zinc-600">{hint}</span> : null}
     </div>
   );
 }
@@ -48,8 +48,8 @@ export function Stat({
     <Card className="min-w-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">{label}</div>
-          <div className={`mt-2 truncate font-mono text-3xl font-semibold tabular-nums ${accent}`}>
+          <div className="label">{label}</div>
+          <div className={`mt-2 truncate font-mono text-[28px] font-medium leading-none ${accent}`}>
             {value}
           </div>
         </div>
@@ -107,9 +107,9 @@ export function Button({
 }) {
   const styles = {
     primary:
-      "bg-gradient-to-r from-cyan-500 to-emerald-500 text-zinc-950 hover:from-cyan-400 hover:to-emerald-400 disabled:from-zinc-700 disabled:to-zinc-700 disabled:text-zinc-500",
+      "bg-cyan-400 text-[#06121a] hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-600",
     ghost:
-      "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 disabled:text-zinc-600",
+      "border border-[var(--hairline-strong)] bg-[var(--panel-raised)] text-zinc-300 hover:border-cyan-400/30 hover:text-zinc-100 disabled:text-zinc-600",
     danger:
       "border border-red-400/30 bg-red-400/10 text-red-300 hover:bg-red-400/20 disabled:text-zinc-600",
   } as const;
@@ -118,7 +118,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed ${styles[variant]} ${className}`}
+      className={`rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed ${styles[variant]} ${className}`}
     >
       {children}
     </button>
@@ -136,9 +136,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
-        {label}
-      </div>
+      <div className="label mb-1.5">{label}</div>
       {children}
       {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
     </label>
@@ -146,7 +144,7 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5 font-mono text-sm text-zinc-100 placeholder-zinc-600 outline-none transition-colors focus:border-cyan-400/50";
+  "w-full rounded-md border border-[var(--hairline-strong)] bg-[#080a0e] px-3 py-2.5 font-mono text-sm text-zinc-100 placeholder-zinc-600 outline-none transition-colors focus:border-cyan-400/60";
 
 export function TxBanner({ status, onDismiss }: { status: TxStatus; onDismiss: () => void }) {
   if (status.phase === "idle") return null;
@@ -232,7 +230,7 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: stri
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-50">{title}</h1>
+        <h1 className="text-[26px] font-semibold text-zinc-50">{title}</h1>
         {sub ? <p className="mt-1 text-sm text-zinc-500">{sub}</p> : null}
       </div>
       {children}
@@ -248,7 +246,7 @@ export function ProgressBar({ pct, tone = "flow" }: { pct: number; tone?: "flow"
       <div
         className={
           tone === "flow"
-            ? "relative h-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-[width] duration-1000 ease-linear"
+            ? "relative h-full overflow-hidden rounded-full bg-cyan-400 transition-[width] duration-1000 ease-linear"
             : "h-full rounded-full bg-zinc-600 transition-[width] duration-1000 ease-linear"
         }
         style={{ width: `${clamped}%` }}

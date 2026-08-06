@@ -115,7 +115,7 @@ function ConnectionCard() {
         <button
           onClick={() => connectors[0] && connectAsync({ connector: connectors[0] }).catch(() => {})}
           disabled={!connectors[0] || isPending}
-          className="mt-2.5 w-full rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 px-3 py-2 text-sm font-semibold text-zinc-950 transition hover:from-cyan-400 hover:to-emerald-400 disabled:opacity-50"
+          className="mt-2.5 w-full rounded-md bg-cyan-400 px-3 py-2 text-sm font-medium text-[#06121a] transition-colors hover:bg-cyan-300 disabled:opacity-50"
         >
           {isPending ? "Connecting…" : "Connect Wallet"}
         </button>
