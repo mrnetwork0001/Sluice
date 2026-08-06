@@ -129,14 +129,20 @@ contract SluiceTreasury is ICCTPHookReceiver {
 
     // ------------------------------------------------------------- allocation
 
-    /// @notice Allocate idle USDC across adapters per target weights. Anyone can poke.
+    /// @notice Allocate idle USDC across adapters per target weights. Anyone can
+    ///         poke. Each allocation is capped by what is actually left, so
+    ///         weights that do not sum to exactly 100% (e.g. after adding a venue)
+    ///         degrade gracefully instead of reverting the whole rebalance.
     function rebalance() external {
         uint256 available = idle();
         require(available > 0, "Treasury: nothing to allocate");
+        uint256 remaining = available;
         uint256[] memory allocations = new uint256[](adapters.length);
-        for (uint256 i = 0; i < adapters.length; i++) {
+        for (uint256 i = 0; i < adapters.length && remaining > 0; i++) {
             uint256 share = (available * targetBps[i]) / 10_000;
+            if (share > remaining) share = remaining;
             if (share == 0) continue;
+            remaining -= share;
             allocations[i] = share;
             require(usdc.transfer(address(adapters[i]), share), "Treasury: transfer failed");
             adapters[i].deposit(share);

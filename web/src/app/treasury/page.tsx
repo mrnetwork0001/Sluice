@@ -253,6 +253,9 @@ export default function TreasuryPage() {
                     </div>
                     <div className="mt-0.5 text-xs text-zinc-500">
                       {(Number(adapters[1][index]) / 100).toFixed(1)}% APY
+                      {/^morpho/i.test(name) ? (
+                        <span className="ml-1.5 text-emerald-400/70">· live ERC-4626 vault</span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="font-mono text-lg font-semibold tabular-nums text-emerald-300">

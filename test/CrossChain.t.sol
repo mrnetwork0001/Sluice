@@ -9,6 +9,8 @@ import {SluiceGate, SluiceHooks} from "../contracts/crosschain/SluiceGate.sol";
 import {SluiceTreasury} from "../contracts/crosschain/SluiceTreasury.sol";
 import {ReserveYieldAdapter, CCTPRemoteAdapter, IYieldAdapter} from "../contracts/crosschain/YieldAdapters.sol";
 import {RemoteYieldVault} from "../contracts/crosschain/RemoteYieldVault.sol";
+import {ERC4626Adapter, IERC4626} from "../contracts/crosschain/ERC4626Adapter.sol";
+import {MockERC4626} from "../contracts/mocks/MockERC4626.sol";
 
 /// @dev Test double for Circle's TokenMessengerV2: records burn calls and burns
 ///      the caller's USDC. The test itself plays the attestation relayer, minting
@@ -264,6 +266,63 @@ contract CrossChainTest is Test {
 
         assertEq(sluice.ownerOf(1), employee);
         assertEq(usdcA.balanceOf(lp), 900e6); // full refund on Arc
+    }
+
+    function test_RebalanceSurvivesOverweightTargets() public {
+        // A third venue pushes total targets past 100% — the rebalance must still
+        // allocate what it can instead of reverting.
+        MockERC4626 extra = new MockERC4626(usdcA);
+        ERC4626Adapter extraAdapter = new ERC4626Adapter(IERC4626(address(extra)), address(treasury), "Extra", 350, ARC);
+        treasury.addAdapter(IYieldAdapter(address(extraAdapter)), 3_000); // now 130% total
+
+        vm.prank(employer);
+        sluice.createStream(employee, 10_000e6, 30 days, 0, address(0));
+        sluice.sweepIdle();
+        treasury.rebalance();
+
+        // The rebalance completed instead of reverting: the first two venues took
+        // their full weight, the over-subscribed third was capped to what was
+        // left (nothing here), and no USDC was stranded in the treasury.
+        assertEq(treasury.idle(), 0);
+        assertEq(localAdapter.principal(), 3_000e6);
+        assertEq(extraAdapter.totalAssets(), 0);
+    }
+
+    // ------------------------------------------------ real ERC-4626 yield
+
+    function test_ERC4626AdapterEarnsRealVaultYield() public {
+        MockERC4626 vault4626 = new MockERC4626(usdcA);
+        ERC4626Adapter adapter =
+            new ERC4626Adapter(IERC4626(address(vault4626)), address(this), "Morpho USDC (Arc)", 350, ARC);
+
+        usdcA.mint(address(adapter), 1_000e6);
+        adapter.deposit(1_000e6);
+        assertEq(adapter.totalAssets(), 1_000e6);
+        assertEq(usdcA.balanceOf(address(vault4626)), 1_000e6); // funds really left for the vault
+
+        // The vault earns: share price rises, and the position marks up with it.
+        vault4626.accrue(35e6); // 3.5%
+        assertEq(adapter.totalAssets(), 1_035e6);
+
+        uint256 before = usdcA.balanceOf(address(this));
+        uint256 paid = adapter.withdraw(500e6);
+        assertEq(paid, 500e6);
+        assertEq(usdcA.balanceOf(address(this)) - before, 500e6);
+        assertApproxEqAbs(adapter.totalAssets(), 535e6, 1); // principal + yield still working
+    }
+
+    function test_ERC4626AdapterCapsWithdrawalAtVaultLiquidity() public {
+        MockERC4626 vault4626 = new MockERC4626(usdcA);
+        ERC4626Adapter adapter =
+            new ERC4626Adapter(IERC4626(address(vault4626)), address(this), "Morpho USDC (Arc)", 350, ARC);
+        usdcA.mint(address(adapter), 100e6);
+        adapter.deposit(100e6);
+
+        // Asking for more than the position holds pays out what is there rather
+        // than reverting the treasury's whole recall.
+        uint256 paid = adapter.withdraw(500e6);
+        assertEq(paid, 100e6);
+        assertEq(adapter.totalAssets(), 0);
     }
 
     // --------------------------------------------------- cross-chain payroll

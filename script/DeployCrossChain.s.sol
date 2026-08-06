@@ -6,7 +6,8 @@ import {Sluice, IERC20} from "../contracts/Sluice.sol";
 import {ITokenMessengerV2} from "../contracts/crosschain/CCTPInterfaces.sol";
 import {SluiceGate} from "../contracts/crosschain/SluiceGate.sol";
 import {SluiceTreasury} from "../contracts/crosschain/SluiceTreasury.sol";
-import {ReserveYieldAdapter, IYieldAdapter} from "../contracts/crosschain/YieldAdapters.sol";
+import {IYieldAdapter} from "../contracts/crosschain/YieldAdapters.sol";
+import {ERC4626Adapter, IERC4626} from "../contracts/crosschain/ERC4626Adapter.sol";
 
 /// @notice Phase A on Arc Testnet: deploys the CCTP gate, the treasury, and the
 ///         on-Arc reserve yield vault against the REAL Circle TokenMessengerV2,
@@ -26,8 +27,14 @@ contract DeployCrossChain is Script {
         vm.startBroadcast(key);
         SluiceGate gate = new SluiceGate(sluice, ITokenMessengerV2(TOKEN_MESSENGER_V2), relayer);
         SluiceTreasury treasury = new SluiceTreasury(sluice, relayer);
-        ReserveYieldAdapter localAdapter =
-            new ReserveYieldAdapter(sluice.usdc(), address(treasury), "Arc Reserve Vault", 420, ARC_DOMAIN);
+        // Real yield: the Morpho USDC vault Circle Earn Kit lists for Arc Testnet.
+        ERC4626Adapter localAdapter = new ERC4626Adapter(
+            IERC4626(vm.envOr("EARN_VAULT", 0x8f2D33B5D4B9B5F02DF635AE308F7B4C9dA8D2DC)),
+            address(treasury),
+            "Morpho USDC Vault (Circle Earn)",
+            350,
+            ARC_DOMAIN
+        );
 
         sluice.setGate(address(gate));
         sluice.setTreasury(address(treasury));
