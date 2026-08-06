@@ -34,6 +34,16 @@ const STORAGE_KEY = "sluice.circleUserId";
 const POLL_INTERVAL_MS = 1_500;
 const POLL_TIMEOUT_MS = 60_000;
 
+/**
+ * W3SSdk is a singleton. A second `new W3SSdk(configs)` applies the configs to a
+ * throwaway `this` and returns the FIRST instance, silently discarding them
+ * (see dist/src/index.js:132-135). Anything that must actually take effect has to
+ * go through a method on the returned instance - updateConfigs() for login
+ * configuration, setAuthentication() for challenges - never the constructor.
+ * Note updateConfigs REPLACES the whole configs object, so call it before
+ * setAuthentication, not after.
+ */
+
 async function api<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch("/api/wallet", {
     method: "POST",
@@ -178,6 +188,8 @@ export default function OnboardPage() {
   const [status, setStatus] = useState<string>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [email, setEmail] = useState("");
+  const [restoreId, setRestoreId] = useState("");
 
   const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
   const sluice = SLUICE_ADDRESSES[arcTestnet.id];
@@ -279,6 +291,100 @@ export default function OnboardPage() {
     }
   };
 
+  /**
+   * Sign in with an email address so the same person reaches the same wallet on
+   * any device. Circle keys the account to the email, which removes this
+   * browser's localStorage from the recovery path entirely.
+   */
+  const signInWithEmail = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      setStatus("Preparing a secure device session…");
+      const { W3SSdk } = await import("@circle-fin/w3s-pw-web-sdk");
+      const sdk = new W3SSdk({ appSettings: { appId: appId! } });
+      const deviceId = await sdk.getDeviceId();
+
+      setStatus(`Sending a sign-in code to ${email}…`);
+      const token = await api<{
+        deviceToken: string;
+        deviceEncryptionKey: string;
+        otpToken?: string;
+      }>("emailToken", { deviceId, email });
+
+      setStatus("Check your inbox and enter the code…");
+      const login = await new Promise<{ userToken: string; encryptionKey: string }>(
+        (resolve, reject) => {
+          sdk.updateConfigs(
+            {
+              appSettings: { appId: appId! },
+              loginConfigs: {
+                deviceToken: token.deviceToken,
+                deviceEncryptionKey: token.deviceEncryptionKey,
+                otpToken: token.otpToken,
+              },
+            },
+            (loginError, result) => {
+              if (loginError) {
+                reject(new Error(loginError.message ?? "Sign-in was cancelled"));
+                return;
+              }
+              if (!result) {
+                reject(new Error("Circle returned no sign-in result."));
+                return;
+              }
+              resolve({ userToken: result.userToken, encryptionKey: result.encryptionKey });
+            },
+          );
+          sdk.verifyOtp();
+        },
+      );
+
+      setSession(login);
+      const who = await api<{ userId?: string }>("userByToken", { userToken: login.userToken });
+      if (who.userId) {
+        window.localStorage.setItem(STORAGE_KEY, who.userId);
+        setUserId(who.userId);
+      }
+      setStatus("Signed in - loading your wallet…");
+      const found = await waitForWallet(login.userToken);
+      setStatus(
+        found.length > 0 ? undefined : "Signed in. This account has no wallet yet - create one below.",
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(
+        /155150|SMTP/i.test(message)
+          ? "Email sign-in needs an SMTP sender configured in the Circle developer console " +
+              "(Circle error 155150). Until that is set up, use the recovery code below."
+          : message,
+      );
+      setStatus(undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Restore an account on another device without any console configuration. */
+  const restore = async () => {
+    const id = restoreId.trim();
+    if (!id) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, id);
+      setUserId(id);
+      const fresh = await refresh(id);
+      const found = await waitForWallet(fresh.userToken);
+      setStatus(found.length > 0 ? undefined : "That account has no wallet yet.");
+      setRestoreId("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const reset = () => {
     window.localStorage.removeItem(STORAGE_KEY);
     setUserId(undefined);
@@ -354,6 +460,24 @@ export default function OnboardPage() {
             </Button>
           </div>
 
+          {userId ? (
+            <div className="mt-4 rounded-xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
+              <div className="text-xs uppercase tracking-wider text-amber-200/80">
+                Recovery code - save this
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <code className="break-all font-mono text-xs text-amber-100">{userId}</code>
+                <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(userId)}>
+                  Copy
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">
+                This wallet is tied to this browser. Clear your site data or switch device without
+                this code and you will get a different wallet.
+              </p>
+            </div>
+          ) : null}
+
           {session && appId ? (
             <div className="mt-6 border-t border-white/[0.06] pt-5">
               <CardTitle hint="signed with your PIN">Withdraw your salary</CardTitle>
@@ -426,6 +550,43 @@ export default function OnboardPage() {
               {session ? "active" : "pending"}
             </p>
           ) : null}
+
+          <div className="mt-6 border-t border-white/[0.06] pt-5">
+            <CardTitle hint="use on another device">Sign in instead</CardTitle>
+
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={restoreId}
+                onChange={(event) => setRestoreId(event.target.value)}
+                placeholder="paste your recovery code"
+                className={`${inputClass} flex-1 font-mono`}
+              />
+              <Button variant="ghost" onClick={restore} disabled={busy || !restoreId.trim()}>
+                Restore
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-zinc-600">
+              Restores an existing wallet on any device - this is the only way back to a wallet you
+              already created.
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@company.com"
+                className={`${inputClass} flex-1`}
+              />
+              <Button variant="ghost" onClick={signInWithEmail} disabled={busy || !email}>
+                Email me a code
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-zinc-600">
+              Email sign-in keys the account to your address, so it works on any device without a
+              code. It creates its own wallet - it will not reopen a PIN-only wallet made earlier.
+            </p>
+          </div>
         </Card>
       )}
 

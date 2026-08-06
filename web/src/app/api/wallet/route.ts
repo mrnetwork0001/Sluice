@@ -152,6 +152,45 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      /**
+       * Email OTP login. This is what makes a wallet reachable from ANY device:
+       * the Circle user is keyed to the email address, so the same person gets
+       * the same wallet without depending on this browser's localStorage.
+       *
+       * Requires an SMTP sender configured in the Circle developer console -
+       * without it Circle replies 155150 and no mail is ever sent.
+       */
+      case "emailToken": {
+        const { deviceId, email } = body as unknown as {
+          deviceId?: string;
+          email?: string;
+        };
+        if (!deviceId || !email) {
+          return NextResponse.json(
+            { error: "deviceId and email are required" },
+            { status: 400 },
+          );
+        }
+        const response = await circle.createDeviceTokenForEmailLogin({ deviceId, email });
+        return NextResponse.json({
+          deviceToken: response.data?.deviceToken,
+          deviceEncryptionKey: response.data?.deviceEncryptionKey,
+          otpToken: response.data?.otpToken,
+        });
+      }
+
+      /** Resolve the user behind a session token (used after an email login). */
+      case "userByToken": {
+        if (!body.userToken) {
+          return NextResponse.json({ error: "userToken required" }, { status: 400 });
+        }
+        const response = await circle.getUserStatus({ userToken: body.userToken });
+        return NextResponse.json({
+          userId: response.data?.id,
+          pinStatus: response.data?.pinStatus,
+        });
+      }
+
       /** Status of a user (has a PIN been set, do wallets exist yet). */
       case "status": {
         if (!body.userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
