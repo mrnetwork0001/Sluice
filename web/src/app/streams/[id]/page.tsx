@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useNow, useSluiceWrite, useStream } from "@/lib/hooks";
@@ -18,6 +18,7 @@ import { useChainId } from "wagmi";
 import { gateAbi } from "@/lib/gateAbi";
 import { arcTestnet } from "@/lib/arc";
 import { explorerTxUrl, shortHash } from "@/lib/explorer";
+import { ataToBytes32, checkUsdcAta, usdcAtaFor, type AtaStatus } from "@/lib/solana";
 import {
   formatBps,
   formatDuration,
@@ -170,6 +171,8 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   // Payout destination as a CCTP domain: Arc means a local withdrawal, any
   // other domain burns through the gate. Solana is domain-only (no chain id).
   const [dest, setDest] = useState<number>(ARC_DOMAIN);
+  const [solanaOwner, setSolanaOwner] = useState("");
+  const [ataStatus, setAtaStatus] = useState<AtaStatus>({ state: "idle" });
   const [triggers, setTriggers] = useState<TriggerLogEntry[]>([]);
 
   const parsed = useMemo(() => {
@@ -182,6 +185,25 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   const tax = parsed !== undefined ? (parsed * BigInt(stream.taxBps)) / 10_000n : undefined;
   const activeRules = address ? loadRules(address).filter((rule) => rule.enabled) : [];
   const crossChain = canCrossChain && dest !== ARC_DOMAIN;
+  const toSolana = crossChain && dest === SOLANA_DOMAIN;
+
+  // CCTP will not create the recipient ATA, so verify it exists before we let
+  // anyone burn - otherwise the USDC leaves Arc and can never be delivered.
+  useEffect(() => {
+    if (!toSolana || !solanaOwner.trim()) {
+      setAtaStatus({ state: "idle" });
+      return;
+    }
+    let cancelled = false;
+    setAtaStatus({ state: "checking" });
+    const timer = setTimeout(() => {
+      void checkUsdcAta(solanaOwner).then((result) => !cancelled && setAtaStatus(result));
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [toSolana, solanaOwner]);
 
   return (
     <Card>
@@ -218,10 +240,32 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
               wallet key produces USDC that can never be minted. Re-enable only
               once the relayer derives the ATA and can deliver it.
             */}
-            <option value={SOLANA_DOMAIN} disabled>
-              Solana Devnet - delivery not wired yet
-            </option>
+            <option value={SOLANA_DOMAIN}>Pay out on Solana Devnet - via CCTP</option>
           </select>
+          {toSolana ? (
+            <div className="mt-2">
+              <input
+                value={solanaOwner}
+                onChange={(event) => setSolanaOwner(event.target.value)}
+                placeholder="Recipient Solana wallet address (base58)"
+                className={`${inputClass} font-mono`}
+              />
+              {ataStatus.state === "checking" ? (
+                <p className="mt-1.5 text-xs text-zinc-500">Checking the USDC account…</p>
+              ) : ataStatus.state === "invalid" ? (
+                <p className="mt-1.5 text-xs text-red-300">Not a valid Solana address.</p>
+              ) : ataStatus.state === "missing" ? (
+                <p className="mt-1.5 text-xs text-amber-300">
+                  This wallet has no USDC account on Solana Devnet yet, so CCTP could not deliver
+                  the mint and the burn would be stranded. Send it any devnet USDC first.
+                </p>
+              ) : ataStatus.state === "ready" ? (
+                <p className="mt-1.5 font-mono text-xs text-emerald-300">
+                  USDC account ready · {ataStatus.ata.slice(0, 8)}…{ataStatus.ata.slice(-6)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {parsed !== undefined && tax !== undefined && parsed > 0n ? (
@@ -242,7 +286,9 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
             busy ||
             parsed === undefined ||
             parsed === 0n ||
-            parsed > available
+            parsed > available ||
+            // Solana needs a verified, existing USDC account on the far side.
+            (toSolana && ataStatus.state !== "ready")
           }
           onClick={() => {
             if (parsed === undefined || !address) return;
@@ -256,11 +302,22 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
                 label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net exiting to ${domainLabel(dest)} via CCTP`,
                 onSuccess: () => setAmount(""),
               };
-              void send({
-                ...common,
-                functionName: "withdrawToChain",
-                args: [stream.id, parsed, dest, address],
-              });
+              if (toSolana) {
+                // mintRecipient must be the ATA, never the wallet pubkey.
+                const ata = usdcAtaFor(solanaOwner);
+                if (!ata || ataStatus.state !== "ready") return;
+                void send({
+                  ...common,
+                  functionName: "withdrawToDomain",
+                  args: [stream.id, parsed, dest, ataToBytes32(ata)],
+                });
+              } else {
+                void send({
+                  ...common,
+                  functionName: "withdrawToChain",
+                  args: [stream.id, parsed, dest, address],
+                });
+              }
             } else {
               void send({
                 functionName: "withdrawFromStream",

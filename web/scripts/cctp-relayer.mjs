@@ -115,6 +115,30 @@ for (const side of Object.values(sides)) {
 
 const byDomain = Object.fromEntries(Object.values(sides).map((side) => [side.domain, side]));
 
+const { initSolana, deliverToSolana } = await import("./solana-delivery.mjs");
+const solanaCtx = initSolana();
+if (solanaCtx) {
+  const { solanaPreflight } = await import("./solana-delivery.mjs");
+  const pre = await solanaPreflight(solanaCtx);
+  console.log(
+    `[cctp-relayer] Solana leg ready: relayer ${pre.relayer}, ${pre.solBalance} SOL, ` +
+      `Arc route ${pre.arcRouteRegistered ? "registered" : "MISSING"}, ` +
+      `USDC pair ${pre.arcUsdcPairRegistered ? "registered" : "MISSING"}`,
+  );
+  if (pre.solBalance === 0) console.log("[cctp-relayer] WARNING: Solana relayer has 0 SOL - deliveries will fail");
+} else {
+  console.log("[cctp-relayer] Solana leg disabled (set SOLANA_PRIVATE_KEY to enable)");
+}
+
+/**
+ * Solana Devnet is a destination only - it has no EVM chain id and no viem
+ * client, so it is deliberately NOT a `side`. Registering it here stops the
+ * discovery loop from silently dropping Arc->Solana burns, and delivery branches
+ * on `dst.solana` further down.
+ */
+const SOLANA_DOMAIN = 5;
+byDomain[SOLANA_DOMAIN] = { key: "solana", domain: SOLANA_DOMAIN, solana: true, hookReceivers: new Set() };
+
 const state = existsSync(STATE_FILE)
   ? JSON.parse(readFileSync(STATE_FILE, "utf8"))
   : { messages: {}, lastBlock: {}, returns: {} };
@@ -167,11 +191,16 @@ async function discoverBurns(src) {
       const burn = eventLog.args;
       const dst = byDomain[Number(burn.destinationDomain)];
       if (!dst) continue;
-      const recipient = bytes32ToAddress(burn.mintRecipient);
-      const ours =
-        src.ourDepositors.has(burn.depositor.toLowerCase()) ||
-        dst.hookReceivers.has(recipient) ||
-        src.hookReceivers.has(burn.depositor.toLowerCase());
+      // A Solana recipient is a full 32-byte pubkey; truncating it to 20 bytes
+      // the way EVM addresses are unpacked would corrupt it, and the corrupted
+      // value would then be persisted into relayer state.
+      const recipient = dst.solana ? burn.mintRecipient : bytes32ToAddress(burn.mintRecipient);
+      const ours = dst.solana
+        ? src.ourDepositors.has(burn.depositor.toLowerCase()) ||
+          src.hookReceivers.has(burn.depositor.toLowerCase())
+        : src.ourDepositors.has(burn.depositor.toLowerCase()) ||
+          dst.hookReceivers.has(recipient) ||
+          src.hookReceivers.has(burn.depositor.toLowerCase());
       if (!ours) continue;
       const id = `${src.key}:${eventLog.transactionHash}:${eventLog.logIndex}`;
       if (!state.messages[id]) {
@@ -212,7 +241,38 @@ function poisonIfExhausted(id, msg, error) {
 
 async function processMessage(id, msg) {
   const src = sides[msg.srcKey];
-  const dst = sides[msg.dstKey];
+  const dst = sides[msg.dstKey] ?? byDomain[SOLANA_DOMAIN];
+
+  // Solana delivery is a different stack: an Anchor program call, not an EVM
+  // writeContract. It also terminates here - there is no hook to execute
+  // afterwards, because a Solana payout is a plain mint to the recipient's ATA.
+  if (msg.dstKey === "solana") {
+    if (!solanaCtx) {
+      log(`skip ${id}: Arc→Solana burn found but SOLANA_PRIVATE_KEY is not set`);
+      return;
+    }
+    if (msg.status !== "pending") return;
+    const attested = await fetchAttestation(src.domain, msg.txHash);
+    if (!attested) return;
+    try {
+      const { signature, mintRecipient } = await deliverToSolana(
+        solanaCtx,
+        attested,
+        msg.solanaOwner,
+      );
+      msg.status = "done";
+      msg.attempts = 0;
+      msg.solanaSignature = signature;
+      log(`Arc → Solana Devnet: minted to ${mintRecipient} (${signature})`);
+    } catch (error) {
+      msg.attempts = (msg.attempts ?? 0) + 1;
+      msg.lastError = String(error?.message ?? error).slice(0, 300);
+      if (msg.attempts >= MAX_ATTEMPTS) msg.status = "poison";
+      log(`Arc → Solana delivery failed (${msg.attempts}/${MAX_ATTEMPTS}): ${msg.lastError}`);
+    }
+    saveState();
+    return;
+  }
 
   if (msg.status === "pending") {
     const attested = await fetchAttestation(src.domain, msg.txHash);
