@@ -9,6 +9,8 @@ import { loadRules, runAutoTriggers, type TriggerLogEntry } from "@/lib/automati
 import { BASE_DOMAIN, GATE_ADDRESS, crossChainEnabled } from "@/lib/crosschain";
 import { useChainId } from "wagmi";
 import { gateAbi } from "@/lib/gateAbi";
+import { arcTestnet } from "@/lib/arc";
+import { explorerTxUrl, shortHash } from "@/lib/explorer";
 import {
   formatBps,
   formatDuration,
@@ -253,6 +255,18 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
           ⚡ Auto-trigger: {entry.pct}% → {entry.tokenOut} ({entry.amountIn} USDC) —{" "}
           {entry.status === "executed" ? "executed via Circle Swap Kit" : entry.status}
           <div className="mt-0.5 text-cyan-200/60">{entry.detail}</div>
+          {entry.txHash ? (
+            <a
+              href={entry.explorerUrl ?? explorerTxUrl(arcTestnet.id, entry.txHash)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1.5 font-mono text-cyan-300/80 underline decoration-cyan-400/30 underline-offset-2 hover:text-cyan-200"
+              title={entry.txHash}
+            >
+              {shortHash(entry.txHash)}
+              <span className="text-cyan-400/60">↗ Arcscan</span>
+            </a>
+          ) : null}
         </div>
       ))}
     </Card>

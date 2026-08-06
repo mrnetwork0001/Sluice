@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { TxStatus } from "@/lib/hooks";
+import { explorerName, explorerTxUrl, shortHash } from "@/lib/explorer";
 
 export function Card({
   children,
@@ -145,11 +146,19 @@ export function TxBanner({ status, onDismiss }: { status: TxStatus; onDismiss: (
   }
   if (status.phase === "success") {
     return (
-      <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-3.5 py-2.5 text-sm text-emerald-200">
-        <span>✓ {status.label}</span>
-        <button onClick={onDismiss} className="text-emerald-400/60 hover:text-emerald-300">
-          ✕
-        </button>
+      <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-3.5 py-2.5 text-sm text-emerald-200">
+        <div className="flex items-start justify-between gap-2">
+          <span>✓ {status.label}</span>
+          <button onClick={onDismiss} className="shrink-0 text-emerald-400/60 hover:text-emerald-300">
+            ✕
+          </button>
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <TxLink chainId={status.chainId} hash={status.hash} />
+          {status.approvalHash ? (
+            <TxLink chainId={status.chainId} hash={status.approvalHash} label="approval" />
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -160,6 +169,31 @@ export function TxBanner({ status, onDismiss }: { status: TxStatus; onDismiss: (
         ✕
       </button>
     </div>
+  );
+}
+
+/** Explorer link for an on-chain transaction. */
+export function TxLink({
+  chainId,
+  hash,
+  label,
+}: {
+  chainId: number;
+  hash: string;
+  label?: string;
+}) {
+  return (
+    <a
+      href={explorerTxUrl(chainId, hash)}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 font-mono text-emerald-300/80 underline decoration-emerald-400/30 underline-offset-2 transition-colors hover:text-emerald-200"
+      title={hash}
+    >
+      {label ? `${label}: ` : ""}
+      {shortHash(hash)}
+      <span className="text-emerald-400/60">↗ {explorerName(chainId)}</span>
+    </a>
   );
 }
 

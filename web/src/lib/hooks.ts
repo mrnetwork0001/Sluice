@@ -156,7 +156,15 @@ export type TxStatus =
   | { phase: "idle" }
   | { phase: "approving" }
   | { phase: "confirming" }
-  | { phase: "success"; hash: `0x${string}`; label: string }
+  | {
+      phase: "success";
+      hash: `0x${string}`;
+      label: string;
+      /** Chain the transaction landed on — picks the right block explorer. */
+      chainId: number;
+      /** Set when an ERC-20 approval was needed first. */
+      approvalHash?: `0x${string}`;
+    }
   | { phase: "error"; message: string };
 
 interface SendOptions {
@@ -205,6 +213,7 @@ export function useSluiceWrite() {
         if (txChainId !== homeChainId) {
           await switchChainAsync({ chainId: txChainId });
         }
+        let approvalHash: `0x${string}` | undefined;
         const approvalSpec =
           approval ??
           (usdcApproval !== undefined && usdc
@@ -227,6 +236,7 @@ export function useSluiceWrite() {
               chainId: txChainId as never,
             });
             await txClient.waitForTransactionReceipt({ hash: approveHash });
+            approvalHash = approveHash;
           }
         }
         setStatus({ phase: "confirming" });
@@ -243,7 +253,7 @@ export function useSluiceWrite() {
           await switchChainAsync({ chainId: homeChainId }).catch(() => {});
         }
         await queryClient.invalidateQueries();
-        setStatus({ phase: "success", hash, label });
+        setStatus({ phase: "success", hash, label, chainId: txChainId, approvalHash });
         await onSuccess?.();
       } catch (error) {
         if (txChainId !== homeChainId) {

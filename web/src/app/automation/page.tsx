@@ -14,6 +14,8 @@ import {
   type TriggerLogEntry,
 } from "@/lib/automation";
 import { Badge, Button, Card, CardTitle, EmptyState, Field, PageHeader, inputClass } from "@/components/ui";
+import { arcTestnet } from "@/lib/arc";
+import { explorerTxUrl, shortHash } from "@/lib/explorer";
 
 export default function AutomationPage() {
   const { address, isConnected } = useAccount();
@@ -226,16 +228,17 @@ export default function AutomationPage() {
                   </div>
                   <div className="mt-1 text-xs text-zinc-500">
                     {new Date(entry.at).toLocaleString()} — {entry.detail}
-                    {entry.explorerUrl ? (
+                    {entry.txHash ? (
                       <>
                         {" "}
                         <a
-                          href={entry.explorerUrl}
+                          href={entry.explorerUrl ?? explorerTxUrl(arcTestnet.id, entry.txHash)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-cyan-400 hover:text-cyan-300"
+                          className="font-mono text-cyan-400 underline decoration-cyan-400/30 underline-offset-2 hover:text-cyan-300"
+                          title={entry.txHash}
                         >
-                          view tx ↗
+                          {shortHash(entry.txHash)} ↗ Arcscan
                         </a>
                       </>
                     ) : null}
