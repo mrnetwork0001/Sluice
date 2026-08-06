@@ -149,16 +149,21 @@ flowchart LR
     MA -.-> RV
 ```
 
-| Contract | Purpose |
-|---|---|
-| [`Sluice.sol`](contracts/Sluice.sol) | Core payroll: ERC-3525 streams, vesting, tax splits, marketplace, advances, insurance pool, escrow-liability accounting |
-| [`erc3525/ERC3525.sol`](contracts/erc3525/ERC3525.sol) | Vendored minimal ERC-3525 with value-transfer hook |
-| [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver - cross-chain funding, buyouts, withdrawal exits |
-| [`crosschain/SluiceTreasury.sol`](contracts/crosschain/SluiceTreasury.sol) | Idle-escrow yield router: sweep / rebalance / recall, NAV, adapter registry |
-| [`crosschain/ERC4626Adapter.sol`](contracts/crosschain/ERC4626Adapter.sol) | Real ERC-4626 adapter — deposits idle escrow into the Morpho USDC vault on Arc |
-| [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | Reserve adapter (simulated APY, used in tests) + CCTP remote-vault adapter |
-| [`crosschain/RemoteYieldVault.sol`](contracts/crosschain/RemoteYieldVault.sol) | Destination-chain vault; accrues APY, exits home with yield |
-| [`crosschain/CCTPInterfaces.sol`](contracts/crosschain/CCTPInterfaces.sol) | Canonical `TokenMessengerV2` / `MessageTransmitterV2` interfaces |
+**10 contracts in source; 6 deployed live** (4 are test fixtures or a shared base).
+Every deployed contract is source-verified on its explorer.
+
+| Contract | Purpose | Deployed |
+|---|---|---|
+| [`Sluice.sol`](contracts/Sluice.sol) | Core payroll: ERC-3525 streams, vesting, tax splits, marketplace, advances, insurance pool, escrow-liability accounting | Arc ✅ |
+| [`erc3525/ERC3525.sol`](contracts/erc3525/ERC3525.sol) | Vendored minimal ERC-3525 with value-transfer hook | base of Sluice |
+| [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver - cross-chain funding, buyouts, withdrawal exits | Arc ✅ |
+| [`crosschain/SluiceTreasury.sol`](contracts/crosschain/SluiceTreasury.sol) | Idle-escrow yield router: sweep / rebalance / recall, NAV, adapter registry | Arc ✅ |
+| [`crosschain/ERC4626Adapter.sol`](contracts/crosschain/ERC4626Adapter.sol) | Real ERC-4626 adapter - deposits idle escrow into the Morpho USDC vault on Arc | Arc ✅ |
+| [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | `CCTPRemoteAdapter` (deployed) routes escrow to the remote vault; `ReserveYieldAdapter` is a simulated-APY adapter used in tests | Arc ✅ |
+| [`crosschain/RemoteYieldVault.sol`](contracts/crosschain/RemoteYieldVault.sol) | Destination-chain vault; accrues APY, exits home with yield | Base Sepolia ✅ |
+| [`crosschain/CCTPInterfaces.sol`](contracts/crosschain/CCTPInterfaces.sol) | Canonical `TokenMessengerV2` / `MessageTransmitterV2` interfaces | interfaces only |
+| [`mocks/MockUSDC.sol`](contracts/mocks/MockUSDC.sol) | 6-decimal USDC stand-in | tests only |
+| [`mocks/MockERC4626.sol`](contracts/mocks/MockERC4626.sol) | ERC-4626 vault stand-in for adapter tests | tests only |
 
 > **No mock messenger.** Cross-chain transfers go through Circle's canonical
 > `TokenMessengerV2` and are attested by Circle's Iris API; the local
@@ -270,6 +275,10 @@ These are the addresses the app actually loads, from
 [`web/src/lib/deployments.5042002.json`](web/src/lib/deployments.5042002.json)
 and [`deployments.84532.json`](web/src/lib/deployments.84532.json).
 
+**All six are source-verified** - click any address to read the Solidity and call
+it from the explorer's Read/Write tabs. Arcscan and Base Sepolia's explorer both
+run Blockscout, so verification needs no API key.
+
 **Auto-triggers are real swaps too.** Withdrawal rules route a slice of each
 paycheck through Circle Swap Kit on Arc — live quotes come from Circle's routing
 service and the conversion is an on-chain transaction
@@ -297,6 +306,18 @@ across both chains, and recalled the remote position home with its yield.
 export PRIVATE_KEY=0x...   # funded with Arc testnet USDC
 forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
 ```
+
+**Re-verify after every deploy.** Verification is not automatic, and an
+unverified contract is unreadable to anyone evaluating this. One command
+re-verifies the whole live set, reading addresses straight from the deployment
+JSONs so it stays correct after a redeploy:
+
+```bash
+./script/verify-all.sh
+```
+
+It is idempotent - already-verified contracts report as passes - so it is safe to
+run any time, and should be run immediately after any redeploy.
 
 > **Careful:** `script/Deploy.s.sol` rewrites
 > `web/src/lib/deployments.5042002.json` with only the `sluice` key, dropping the
