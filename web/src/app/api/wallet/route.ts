@@ -122,6 +122,36 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ challengeId: response.data?.challengeId });
       }
 
+      /**
+       * Newest transaction for a wallet, so the UI can surface the Arc tx hash
+       * once Circle has broadcast it. Circle returns a challenge, not a hash -
+       * the hash only exists after the MPC signature is submitted onchain.
+       */
+      case "latestTransaction": {
+        const { userToken, walletId } = body as unknown as {
+          userToken?: string;
+          walletId?: string;
+        };
+        if (!userToken || !walletId) {
+          return NextResponse.json(
+            { error: "userToken and walletId are required" },
+            { status: 400 },
+          );
+        }
+        const response = await circle.listTransactions({
+          userToken,
+          walletIds: [walletId],
+          pageSize: 1,
+        });
+        const tx = (response.data?.transactions ?? [])[0];
+        return NextResponse.json({
+          id: tx?.id,
+          state: tx?.state,
+          txHash: tx?.txHash,
+          errorReason: tx?.errorReason,
+        });
+      }
+
       /** Status of a user (has a PIN been set, do wallets exist yet). */
       case "status": {
         if (!body.userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
