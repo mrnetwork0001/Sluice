@@ -121,15 +121,13 @@ export default function OnboardPage() {
             reject(new Error(sdkError.message ?? "Wallet setup was cancelled"));
             return;
           }
-          // The callback can fire with no result, and a non-COMPLETE status is a
-          // failure the SDK does not report through sdkError.
-          if (!result) {
-            reject(new Error("Circle returned no challenge result. Please try again."));
-            return;
-          }
-          const state = String(result.status);
-          if (state !== "COMPLETE") {
-            reject(new Error(`Wallet setup did not complete (status: ${state}).`));
+          // Only a definitive failure should abort. The callback legitimately
+          // fires with IN_PROGRESS or PENDING while Circle is still provisioning,
+          // and it can fire with no result at all - in those cases the wallet
+          // poll below is the real source of truth, not this status.
+          const state = result ? String(result.status) : "UNKNOWN";
+          if (state === "FAILED" || state === "EXPIRED") {
+            reject(new Error(`Wallet setup ${state.toLowerCase()}. Please try again.`));
             return;
           }
           resolve();
