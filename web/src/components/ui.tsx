@@ -35,19 +35,33 @@ export function Stat({
   value,
   sub,
   accent = "text-zinc-100",
+  icon,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   accent?: string;
+  /** Optional glyph rendered in a tinted tile, matching `accent`. */
+  icon?: ReactNode;
 }) {
   return (
     <Card className="min-w-0">
-      <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">{label}</div>
-      <div className={`mt-1.5 truncate font-mono text-2xl font-semibold tabular-nums ${accent}`}>
-        {value}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">{label}</div>
+          <div className={`mt-2 truncate font-mono text-3xl font-semibold tabular-nums ${accent}`}>
+            {value}
+          </div>
+        </div>
+        {icon ? (
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-inset ring-white/[0.06] ${accent}`}
+          >
+            {icon}
+          </span>
+        ) : null}
       </div>
-      {sub ? <div className="mt-1 text-xs text-zinc-500">{sub}</div> : null}
+      {sub ? <div className="mt-2 text-xs text-zinc-500">{sub}</div> : null}
     </Card>
   );
 }
