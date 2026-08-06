@@ -6,7 +6,15 @@ import { useAccount } from "wagmi";
 import { useNow, useSluiceWrite, useStream } from "@/lib/hooks";
 import { liveAvailable, liveVested, maxAdvance, type Stream } from "@/lib/sluice";
 import { loadRules, runAutoTriggers, type TriggerLogEntry } from "@/lib/automation";
-import { BASE_DOMAIN, GATE_ADDRESS, crossChainEnabled } from "@/lib/crosschain";
+import {
+  ARC_DOMAIN,
+  GATE_ADDRESS,
+  REMOTE_SIDES,
+  SOLANA_DOMAIN,
+  crossChainEnabled,
+  domainLabel,
+  solanaAddressToBytes32,
+} from "@/lib/crosschain";
 import { useChainId } from "wagmi";
 import { gateAbi } from "@/lib/gateAbi";
 import { arcTestnet } from "@/lib/arc";
@@ -160,7 +168,10 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   const chainId = useChainId();
   const canCrossChain = crossChainEnabled(chainId);
   const [amount, setAmount] = useState("");
-  const [dest, setDest] = useState<"arc" | "base">("arc");
+  // Payout destination as a CCTP domain: Arc means a local withdrawal, any
+  // other domain burns through the gate. Solana is domain-only (no chain id).
+  const [dest, setDest] = useState<number>(ARC_DOMAIN);
+  const [solanaAddress, setSolanaAddress] = useState("");
   const [triggers, setTriggers] = useState<TriggerLogEntry[]>([]);
 
   const parsed = useMemo(() => {
@@ -172,7 +183,8 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   }, [amount]);
   const tax = parsed !== undefined ? (parsed * BigInt(stream.taxBps)) / 10_000n : undefined;
   const activeRules = address ? loadRules(address).filter((rule) => rule.enabled) : [];
-  const crossChain = canCrossChain && dest === "base";
+  const crossChain = canCrossChain && dest !== ARC_DOMAIN;
+  const toSolana = crossChain && dest === SOLANA_DOMAIN;
 
   return (
     <Card>
@@ -193,17 +205,30 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
           <select
             className={inputClass}
             value={dest}
-            onChange={(event) => setDest(event.target.value as "arc" | "base")}
+            onChange={(event) => setDest(Number(event.target.value))}
           >
-            <option value="arc">Pay out here on Arc Testnet</option>
-            <option value="base">Pay out on Base Sepolia - via CCTP</option>
+            <option value={ARC_DOMAIN}>Pay out here on Arc Testnet</option>
+            {REMOTE_SIDES.map((side) => (
+              <option key={side.domain} value={side.domain}>
+                Pay out on {side.label} - via CCTP
+              </option>
+            ))}
+            <option value={SOLANA_DOMAIN}>Pay out on Solana Devnet - via CCTP</option>
           </select>
+          {toSolana ? (
+            <input
+              value={solanaAddress}
+              onChange={(event) => setSolanaAddress(event.target.value)}
+              placeholder="Your Solana address (base58)"
+              className={`${inputClass} mt-2 font-mono`}
+            />
+          ) : null}
         </div>
       ) : null}
       {parsed !== undefined && tax !== undefined && parsed > 0n ? (
         <div className="mt-2 text-xs text-zinc-500">
           You receive <span className="text-emerald-300">{formatUsdc(parsed - tax)}</span> USDC
-          {crossChain ? " on Base Sepolia" : ""} · tax vault gets{" "}
+          {crossChain ? ` on ${domainLabel(dest)}` : ""} · tax vault gets{" "}
           <span className="text-zinc-300">{formatUsdc(tax)}</span> on Arc
           {crossChain ? (
             <> · burned via CCTP v2, attested by Circle, delivered in ~20s</>
@@ -214,18 +239,41 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
       ) : null}
       <div className="mt-3">
         <Button
-          disabled={busy || parsed === undefined || parsed === 0n || parsed > available}
+          disabled={
+            busy ||
+            parsed === undefined ||
+            parsed === 0n ||
+            parsed > available ||
+            // Never burn to a Solana address that could not receive the mint.
+            (toSolana && !solanaAddressToBytes32(solanaAddress))
+          }
           onClick={() => {
             if (parsed === undefined || !address) return;
             const net = parsed - (parsed * BigInt(stream.taxBps)) / 10_000n;
             if (crossChain && GATE_ADDRESS) {
-              void send({
+              // Solana pubkeys are already 32 bytes, so they go through
+              // withdrawToDomain as raw bytes32. EVM addresses take the
+              // withdrawToChain convenience overload, which left-pads for us.
+              const common = {
                 to: { address: GATE_ADDRESS, abi: gateAbi },
-                functionName: "withdrawToChain",
-                args: [stream.id, parsed, BASE_DOMAIN, address],
-                label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net exiting to Base Sepolia via CCTP`,
+                label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net exiting to ${domainLabel(dest)} via CCTP`,
                 onSuccess: () => setAmount(""),
-              });
+              };
+              if (toSolana) {
+                const recipient = solanaAddressToBytes32(solanaAddress);
+                if (!recipient) return;
+                void send({
+                  ...common,
+                  functionName: "withdrawToDomain",
+                  args: [stream.id, parsed, dest, recipient],
+                });
+              } else {
+                void send({
+                  ...common,
+                  functionName: "withdrawToChain",
+                  args: [stream.id, parsed, dest, address],
+                });
+              }
             } else {
               void send({
                 functionName: "withdrawFromStream",
@@ -244,7 +292,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
             }
           }}
         >
-          {crossChain ? "Withdraw to Base Sepolia" : "Withdraw"}
+          {crossChain ? `Withdraw to ${domainLabel(dest)}` : "Withdraw"}
         </Button>
       </div>
       <TxBanner status={status} onDismiss={reset} />

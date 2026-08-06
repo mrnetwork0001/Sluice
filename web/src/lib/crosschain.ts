@@ -14,6 +14,9 @@ export const ARC_DOMAIN = 26;
 export const BASE_DOMAIN = 6;
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
 
+/** Solana Devnet has no EVM chain id - it is reachable by CCTP domain only. */
+export const SOLANA_DOMAIN = 5;
+
 /** Canonical CCTP v2 TokenMessenger (same address on Arc Testnet + Base Sepolia). */
 export const TOKEN_MESSENGER_V2 = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as const;
 
@@ -49,6 +52,57 @@ export const BASE_SIDE: ChainSide = {
   messenger: TOKEN_MESSENGER_V2,
 };
 
+/**
+ * Every remote chain payroll can be funded from or paid out to.
+ *
+ * CCTP v2 deploys TokenMessengerV2 at the SAME canonical address on all of these
+ * (verified onchain), and SluiceGate already burns to an arbitrary destination
+ * domain - so adding a chain is configuration, not a contract change. Each USDC
+ * address below was verified live to report symbol=USDC, decimals=6.
+ */
+export const REMOTE_SIDES: ChainSide[] = [
+  BASE_SIDE,
+  {
+    chainId: 11155111,
+    domain: 0,
+    label: "Ethereum Sepolia",
+    usdc: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    messenger: TOKEN_MESSENGER_V2,
+  },
+  {
+    chainId: 43113,
+    domain: 1,
+    label: "Avalanche Fuji",
+    usdc: "0x5425890298aed601595a70AB815c96711a31Bc65",
+    messenger: TOKEN_MESSENGER_V2,
+  },
+  {
+    chainId: 11155420,
+    domain: 2,
+    label: "OP Sepolia",
+    usdc: "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    messenger: TOKEN_MESSENGER_V2,
+  },
+  {
+    chainId: 421614,
+    domain: 3,
+    label: "Arbitrum Sepolia",
+    usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    messenger: TOKEN_MESSENGER_V2,
+  },
+];
+
+/** All sides including Arc, for lookups by chain id or domain. */
+export const ALL_SIDES: ChainSide[] = [ARC_SIDE, ...REMOTE_SIDES];
+
+export function sideByChainId(chainId: number | undefined): ChainSide | undefined {
+  return ALL_SIDES.find((side) => side.chainId === chainId);
+}
+
+export function sideByDomain(domain: number): ChainSide | undefined {
+  return ALL_SIDES.find((side) => side.domain === domain);
+}
+
 export const GATE_ADDRESS = defined((depArc as unknown as Record<string, string | undefined>).gate);
 export const TREASURY_ADDRESS = defined((depArc as unknown as Record<string, string | undefined>).treasury);
 export const REMOTE_VAULT_ADDRESS = defined((depBase as unknown as Record<string, string | undefined>).remoteVault);
@@ -72,6 +126,57 @@ export function addressToBytes32(address: `0x${string}`): `0x${string}` {
 
 export const ZERO_BYTES32 =
   "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+/**
+ * Decode a base58 Solana address into CCTP's bytes32 recipient.
+ *
+ * A Solana pubkey is already 32 bytes, so it maps straight onto the same field
+ * an EVM address gets left-padded into - which is why SluiceGate needs no change
+ * to pay out to Solana. Implemented here rather than pulling bs58 in: it is a
+ * dozen lines, and the alternative is depending on a package that only happens
+ * to be hoisted today.
+ *
+ * Returns undefined for anything that is not a valid 32-byte key, so the UI can
+ * refuse to burn to an address that could never receive the mint.
+ */
+export function solanaAddressToBytes32(address: string): `0x${string}` | undefined {
+  const trimmed = address.trim();
+  if (!trimmed) return undefined;
+
+  const bytes: number[] = [];
+  for (const char of trimmed) {
+    let carry = BASE58_ALPHABET.indexOf(char);
+    if (carry < 0) return undefined;
+    for (let i = 0; i < bytes.length; i += 1) {
+      carry += bytes[i]! * 58;
+      bytes[i] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  // Each leading '1' encodes a leading zero byte.
+  for (const char of trimmed) {
+    if (char !== "1") break;
+    bytes.push(0);
+  }
+
+  if (bytes.length !== 32) return undefined;
+  const hex = bytes
+    .reverse()
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `0x${hex}` as `0x${string}`;
+}
+
+/** True when `address` is a well-formed 32-byte Solana pubkey. */
+export function isValidSolanaAddress(address: string): boolean {
+  return solanaAddressToBytes32(address) !== undefined;
+}
 
 /**
  * destinationCaller for hooked burns: locked to the Sluice relayer so nobody can
@@ -229,6 +334,6 @@ export function encodeFundBatchExactHook(params: {
 /** Human label for a CCTP domain id. */
 export function domainLabel(domain: number): string {
   if (domain === ARC_DOMAIN) return "Arc";
-  if (domain === BASE_DOMAIN) return "Base Sepolia";
-  return `Domain ${domain}`;
+  if (domain === SOLANA_DOMAIN) return "Solana Devnet";
+  return sideByDomain(domain)?.label ?? `Domain ${domain}`;
 }

@@ -53,6 +53,31 @@ const baseChain = defineChain({
   rpcUrls: { default: { http: ["https://sepolia.base.org"] } },
 });
 
+/**
+ * Additional CCTP v2 destinations. TokenMessengerV2 lives at the same canonical
+ * address on every one of these, so a chain is pure configuration. `chunk` is the
+ * getLogs window each public RPC tolerates - they differ a lot, and the scanner
+ * halves adaptively on failure, so these are starting points rather than limits.
+ */
+const extraChains = [
+  { key: "ethereum", id: 11155111, name: "Ethereum Sepolia", domain: 0, chunk: 498n,
+    rpc: "https://ethereum-sepolia-rpc.publicnode.com",
+    usdc: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
+  { key: "avalanche", id: 43113, name: "Avalanche Fuji", domain: 1, chunk: 1_998n,
+    rpc: "https://api.avax-test.network/ext/bc/C/rpc",
+    usdc: "0x5425890298aed601595a70AB815c96711a31Bc65",
+    currency: { name: "Avax", symbol: "AVAX", decimals: 18 } },
+  { key: "optimism", id: 11155420, name: "OP Sepolia", domain: 2, chunk: 998n,
+    rpc: "https://sepolia.optimism.io",
+    usdc: "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
+  { key: "arbitrum", id: 421614, name: "Arbitrum Sepolia", domain: 3, chunk: 9_998n,
+    rpc: "https://sepolia-rollup.arbitrum.io/rpc",
+    usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
+];
+
 const sides = {
   arc: {
     key: "arc", chain: arcChain, domain: 26, chunk: 9_998n, usdc: "0x3600000000000000000000000000000000000000",
@@ -65,11 +90,30 @@ const sides = {
     ourDepositors: new Set([depBase.remoteVault?.toLowerCase()].filter(Boolean)),
   },
 };
+
+// These carry no Sluice contracts, so they have no hook receivers or depositors
+// of ours: they are pure payout destinations plus funding sources.
+for (const extra of extraChains) {
+  sides[extra.key] = {
+    key: extra.key,
+    chain: defineChain({
+      id: extra.id, name: extra.name, nativeCurrency: extra.currency,
+      rpcUrls: { default: { http: [extra.rpc] } },
+    }),
+    domain: extra.domain,
+    chunk: extra.chunk,
+    usdc: extra.usdc,
+    hookReceivers: new Set(),
+    ourDepositors: new Set(),
+  };
+}
+
 for (const side of Object.values(sides)) {
   side.pub = createPublicClient({ chain: side.chain, transport: http() });
   side.wallet = createWalletClient({ account, chain: side.chain, transport: http() });
 }
-const byDomain = { 26: sides.arc, 6: sides.base };
+
+const byDomain = Object.fromEntries(Object.values(sides).map((side) => [side.domain, side]));
 
 const state = existsSync(STATE_FILE)
   ? JSON.parse(readFileSync(STATE_FILE, "utf8"))
