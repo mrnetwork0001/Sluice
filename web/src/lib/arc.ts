@@ -1,7 +1,7 @@
 import { defineChain } from "viem";
 
 /**
- * Arc Testnet — Circle's L1 with native USDC gas and sub-second finality.
+ * Arc Testnet - Circle's L1 with native USDC gas and sub-second finality.
  * Chain ID 5042002 (0x4CEF52).
  */
 export const arcTestnet = defineChain({
@@ -15,7 +15,7 @@ export const arcTestnet = defineChain({
     default: { name: "Arcscan", url: "https://testnet.arcscan.app" },
   },
   contracts: {
-    // Canonical Multicall3 — verified deployed on Arc testnet; lets wagmi batch reads.
+    // Canonical Multicall3 - verified deployed on Arc testnet; lets wagmi batch reads.
     multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" },
   },
   testnet: true,

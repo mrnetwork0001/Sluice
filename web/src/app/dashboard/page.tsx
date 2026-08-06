@@ -77,20 +77,20 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        sub={sluice ? undefined : "No Sluice deployment on this chain — switch network or set NEXT_PUBLIC_SLUICE_ADDRESS."}
+        sub={sluice ? undefined : "No Sluice deployment on this chain - switch network or set NEXT_PUBLIC_SLUICE_ADDRESS."}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Wallet USDC"
-          value={usdcBalance !== undefined ? formatUsdc(usdcBalance as bigint) : "—"}
+          value={usdcBalance !== undefined ? formatUsdc(usdcBalance as bigint) : "-"}
           accent="text-emerald-300"
         />
         <Stat label="Incoming streams" value={incoming.length} sub="streams paying you" />
         <Stat label="Outgoing streams" value={outgoing.length} sub="streams you fund" />
         <Stat
           label="Insurance pool"
-          value={poolBalance !== undefined ? formatUsdc(poolBalance as bigint) : "—"}
+          value={poolBalance !== undefined ? formatUsdc(poolBalance as bigint) : "-"}
           sub="USDC staked for default coverage"
           accent="text-cyan-300"
         />
@@ -103,7 +103,7 @@ export default function DashboardPage() {
         ) : incoming.length === 0 ? (
           <EmptyState
             title="No incoming streams"
-            body="When an employer opens a salary stream to your address, it appears here — or buy one on the marketplace."
+            body="When an employer opens a salary stream to your address, it appears here - or buy one on the marketplace."
             action={{ href: "/marketplace", label: "Browse marketplace" }}
           />
         ) : (

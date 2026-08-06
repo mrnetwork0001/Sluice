@@ -28,7 +28,7 @@ export function ConnectButton() {
     );
   }
 
-  // Connected on the wrong chain: one click switches — the wallet is prompted to
+  // Connected on the wrong chain: one click switches - the wallet is prompted to
   // add Arc Testnet automatically if it doesn't know the chain yet. Base Sepolia
   // is tolerated transiently while a CCTP burn is in flight.
   if (chainId !== arcTestnet.id && chainId !== 84532) {
@@ -50,7 +50,7 @@ export function ConnectButton() {
         className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm hover:bg-white/10"
       >
         <span className="hidden font-mono tabular-nums text-emerald-300 sm:inline">
-          {balance !== undefined ? `${formatUsdc(balance as bigint)} USDC` : "—"}
+          {balance !== undefined ? `${formatUsdc(balance as bigint)} USDC` : "-"}
         </span>
         <span className="font-mono text-zinc-200">{shortAddr(address)}</span>
         <span className="rounded-full bg-cyan-400/10 px-2 py-0.5 text-[11px] font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/25">

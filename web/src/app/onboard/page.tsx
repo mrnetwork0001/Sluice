@@ -11,7 +11,7 @@ import { Badge, Button, Card, CardTitle, PageHeader, inputClass } from "@/compon
  * Employee onboarding with Circle user-controlled wallets.
  *
  * The recipient of payroll is a normal person. Here they get a wallet on Arc
- * secured by a PIN they choose — MPC keyshares, no seed phrase, no extension,
+ * secured by a PIN they choose - MPC keyshares, no seed phrase, no extension,
  * and no custody by Sluice. Their salary stream then pays that address.
  */
 
@@ -99,7 +99,7 @@ export default function OnboardPage() {
         });
       });
 
-      setStatus("Wallet created — fetching your address…");
+      setStatus("Wallet created - fetching your address…");
       await refresh(created.userId);
       setStatus(undefined);
     } catch (err) {
@@ -124,7 +124,7 @@ export default function OnboardPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader
         title="Get paid without a crypto wallet"
-        sub="Circle creates a wallet on Arc that you control with a PIN — no seed phrase, no browser extension, no app to install."
+        sub="Circle creates a wallet on Arc that you control with a PIN - no seed phrase, no browser extension, no app to install."
       />
 
       {!appId ? (
@@ -156,7 +156,7 @@ export default function OnboardPage() {
           <div className="mt-5 rounded-xl border border-cyan-400/15 bg-cyan-400/5 px-4 py-3 text-sm text-zinc-300">
             Give this address to your employer. They open a salary stream to it on{" "}
             <span className="font-mono text-xs">{sluice ? shortAddr(sluice) : "Sluice"}</span>, and
-            it vests to you every second. You keep control — Sluice never holds your salary, and the
+            it vests to you every second. You keep control - Sluice never holds your salary, and the
             keyshares behind this wallet are split between Circle and your PIN.
           </div>
 
@@ -180,7 +180,7 @@ export default function OnboardPage() {
               <span className="font-mono text-cyan-300">1.</span> Circle creates an account for you
             </li>
             <li>
-              <span className="font-mono text-cyan-300">2.</span> You choose a PIN — that PIN, not a
+              <span className="font-mono text-cyan-300">2.</span> You choose a PIN - that PIN, not a
               seed phrase, secures your wallet
             </li>
             <li>
@@ -217,7 +217,7 @@ export default function OnboardPage() {
         <p className="text-sm leading-relaxed text-zinc-400">
           Every other payroll rail assumes the recipient already has a wallet. Most people do not.
           Circle&apos;s user-controlled wallets are MPC: the keyshares are split so that neither
-          Circle alone nor Sluice can move your money — only you, with your PIN. Arc is on
+          Circle alone nor Sluice can move your money - only you, with your PIN. Arc is on
           Circle&apos;s contract-execution allowlist, so this wallet can do more than hold USDC: it
           can call Sluice directly to withdraw vested salary.
         </p>

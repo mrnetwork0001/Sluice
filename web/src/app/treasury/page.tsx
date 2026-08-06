@@ -36,7 +36,7 @@ function describeActivity(eventName: string, args: Record<string, unknown>): str
     case "Recalled":
       return `Recalled ${formatUsdc(args.amount as bigint)} USDC back to Sluice for a withdrawal`;
     case "Rebalanced":
-      return `Rebalanced — allocated [${(args.allocations as bigint[])
+      return `Rebalanced - allocated [${(args.allocations as bigint[])
         .map((allocation) => formatUsdc(allocation))
         .join(" · ")}] USDC across venues`;
     case "RemoteReturnRequested":
@@ -135,7 +135,7 @@ export default function TreasuryPage() {
         />
         <EmptyState
           title="Treasury not yet wired on this network"
-          body="Switch to Arc Testnet — the auto-yield treasury routes idle escrow over real CCTP v2 between Arc and Base Sepolia."
+          body="Switch to Arc Testnet - the auto-yield treasury routes idle escrow over real CCTP v2 between Arc and Base Sepolia."
         />
       </div>
     );
@@ -145,25 +145,25 @@ export default function TreasuryPage() {
     <div>
       <PageHeader
         title="Treasury"
-        sub="Idle payroll escrow doesn't sleep — it's swept into yield venues across chains via CCTP and recalled on demand."
+        sub="Idle payroll escrow doesn't sleep - it's swept into yield venues across chains via CCTP and recalled on demand."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Treasury NAV"
-          value={nav !== undefined ? formatUsdc(nav as bigint) : "—"}
+          value={nav !== undefined ? formatUsdc(nav as bigint) : "-"}
           sub="idle + all venue positions"
           accent="text-cyan-300"
         />
         <Stat
           label="Yield earned"
-          value={yieldEarned !== undefined ? `+${formatUsdc(yieldEarned as bigint)}` : "—"}
+          value={yieldEarned !== undefined ? `+${formatUsdc(yieldEarned as bigint)}` : "-"}
           sub="lifetime, accruing per second"
           accent="text-emerald-300"
         />
         <Stat
           label="Liquid in Sluice"
-          value={sluiceHeld !== undefined ? formatUsdc(sluiceHeld as bigint) : "—"}
+          value={sluiceHeld !== undefined ? formatUsdc(sluiceHeld as bigint) : "-"}
           sub={
             liability !== undefined
               ? `backing ${formatUsdc(liability as bigint)} of obligations (40% buffer)`
@@ -172,14 +172,14 @@ export default function TreasuryPage() {
         />
         <Stat
           label="Sweepable now"
-          value={sweepable !== undefined ? formatUsdc(sweepable as bigint) : "—"}
+          value={sweepable !== undefined ? formatUsdc(sweepable as bigint) : "-"}
           sub="idle escrow above the buffer"
         />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardTitle hint="anyone can poke — the buffer makes it safe">Escrow routing</CardTitle>
+          <CardTitle hint="anyone can poke - the buffer makes it safe">Escrow routing</CardTitle>
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={busy || !sweepable || (sweepable as bigint) === 0n}
@@ -215,7 +215,7 @@ export default function TreasuryPage() {
                   to: treasuryContract,
                   functionName: "requestRemoteReturn",
                   args: [BigInt(remoteIndex)],
-                  label: "Return requested — the relayer is bringing the Base Sepolia position home",
+                  label: "Return requested - the relayer is bringing the Base Sepolia position home",
                 })
               }
             >
@@ -271,10 +271,10 @@ export default function TreasuryPage() {
       </div>
 
       <Card className="mt-4">
-        <CardTitle hint="on-chain events">Activity</CardTitle>
+        <CardTitle hint="onchain events">Activity</CardTitle>
         {!activity || activity.length === 0 ? (
           <p className="text-sm text-zinc-500">
-            No treasury activity yet — sweep the idle escrow to start earning.
+            No treasury activity yet - sweep the idle escrow to start earning.
           </p>
         ) : (
           <div className="space-y-1.5">

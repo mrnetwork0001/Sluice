@@ -6,7 +6,7 @@ import depBase from "./deployments.84532.json";
 /**
  * Real cross-chain topology over Circle CCTP v2: Arc Testnet (domain 26) and
  * Base Sepolia (domain 6), joined by the canonical TokenMessengerV2 and the
- * Sluice attestation relayer (web/scripts/cctp-relayer.mjs). Nothing mocked —
+ * Sluice attestation relayer (web/scripts/cctp-relayer.mjs). Nothing mocked -
  * burns are real, attestations come from Circle's Iris API, mints are real USDC.
  */
 
@@ -122,7 +122,7 @@ export const messengerAbi = [
   },
 ] as const;
 
-// Hook action ids — mirror SluiceHooks in SluiceGate.sol.
+// Hook action ids - mirror SluiceHooks in SluiceGate.sol.
 const FUND_STREAM = 0;
 const BUY_STREAM = 1;
 const FUND_BATCH = 4;
@@ -159,7 +159,7 @@ export function encodeBuyStreamHook(buyer: `0x${string}`, streamId: bigint): `0x
 
 /**
  * Payload for a cross-chain payroll run. Allocation is by basis points rather
- * than fixed amounts because CCTP deducts a transfer fee — the exact arriving
+ * than fixed amounts because CCTP deducts a transfer fee - the exact arriving
  * amount is unknown when the burn is signed, but a percentage split always
  * applies cleanly to whatever lands.
  */

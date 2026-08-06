@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initiateUserControlledWalletsClient } from "@circle-fin/user-controlled-wallets";
 
 /**
- * Circle user-controlled wallets — employee onboarding without a seed phrase.
+ * Circle user-controlled wallets - employee onboarding without a seed phrase.
  *
  * Payroll's recipient is a normal person, not a crypto user. Circle provisions
  * an MPC wallet on Arc that the EMPLOYEE controls (a keyshare behind their PIN);
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         try {
           await circle.createUser({ userId });
         } catch (error) {
-          // Already existing is fine — onboarding must be resumable.
+          // Already existing is fine - onboarding must be resumable.
           const message = error instanceof Error ? error.message : "";
           if (!/exist/i.test(message)) throw error;
         }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
       /**
        * Start wallet creation on Arc. Returns a challengeId the browser SDK
-       * executes — that step is where the employee sets their PIN and the
+       * executes - that step is where the employee sets their PIN and the
        * keyshares are generated. The server never sees the PIN.
        */
       case "initialize": {
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
       /**
        * Build a contract-execution challenge so the employee's Circle wallet can
-       * call Sluice directly — e.g. withdrawFromStream. Arc is on Circle's
+       * call Sluice directly - e.g. withdrawFromStream. Arc is on Circle's
        * contract-execution allowlist, which is what makes payroll (not just
        * transfers) possible from a wallet the employee controls with a PIN.
        */

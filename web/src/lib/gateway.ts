@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Circle Gateway — unified USDC balance across chains.
+ * Circle Gateway - unified USDC balance across chains.
  *
  * Payroll capital is rarely where payroll runs. Gateway lets an employer see
  * every USDC balance they hold as one number and spend it on Arc without
@@ -15,7 +15,7 @@
 
 /**
  * Testnet chains queried for an EVM depositor. Gateway also covers non-EVM
- * domains (Solana Devnet), but a balance query is per address format — an EVM
+ * domains (Solana Devnet), but a balance query is per address format - an EVM
  * address is not a valid Solana depositor, so Solana is listed separately and
  * queried only when a Solana address is supplied.
  */
@@ -29,7 +29,7 @@ export const GATEWAY_CHAINS = [
   "Polygon_Amoy_Testnet",
 ] as const;
 
-/** Non-EVM domains Gateway supports — queryable with a Solana address. */
+/** Non-EVM domains Gateway supports - queryable with a Solana address. */
 export const GATEWAY_NON_EVM_CHAINS = ["Solana_Devnet"] as const;
 
 export type GatewayChain = (typeof GATEWAY_CHAINS)[number];
@@ -58,14 +58,14 @@ async function loadKit() {
 
 /**
  * Unified USDC balance for an address. Read-only: no wallet connection, no
- * signature, no adapter — Gateway answers for any address.
+ * signature, no adapter - Gateway answers for any address.
  */
 export async function fetchUnifiedBalance(address: `0x${string}`): Promise<UnifiedBalance | undefined> {
   const kit = await loadKit();
   const context = kit.createUnifiedBalanceKitContext();
   const result = (await kit.getBalances(context, {
     token: "USDC",
-    // Naming testnet chains explicitly — the default network is mainnet.
+    // Naming testnet chains explicitly - the default network is mainnet.
     sources: [{ address, chains: GATEWAY_CHAINS as unknown as string[] }],
     includePending: true,
     networkType: "testnet",

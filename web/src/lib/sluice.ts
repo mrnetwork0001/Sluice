@@ -47,7 +47,7 @@ export interface Stream {
   owner: `0x${string}`;
   /** Remaining streamable USDC == ERC-3525 value. */
   remaining: bigint;
-  /** Vested and withdrawable right now (on-chain view). */
+  /** Vested and withdrawable right now (onchain view). */
   available: bigint;
 }
 

@@ -128,11 +128,6 @@ export function Footer() {
             ))}
           </div>
         </div>
-
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-6 text-xs text-zinc-600">
-          <span>Sluice · Programmable Money Hackathon · DeFi Track</span>
-          <span className="font-mono">Arc Testnet · chain 5042002 · gas paid in USDC</span>
-        </div>
       </div>
     </footer>
   );

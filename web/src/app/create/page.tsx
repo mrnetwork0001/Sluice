@@ -72,7 +72,7 @@ export default function CreateStreamPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader
         title="Create a salary stream"
-        sub="Escrow USDC once — it flows to your employee every second, tax withheld automatically."
+        sub="Escrow USDC once - it flows to your employee every second, tax withheld automatically."
       />
       <Card>
         <CardTitle>Stream terms</CardTitle>
@@ -157,7 +157,7 @@ export default function CreateStreamPage() {
                 onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
               >
                 <option value="arc">This wallet on Arc Testnet</option>
-                <option value="base">This wallet on Base Sepolia — via CCTP</option>
+                <option value="base">This wallet on Base Sepolia - via CCTP</option>
               </select>
             </Field>
           ) : null}
@@ -170,7 +170,7 @@ export default function CreateStreamPage() {
             {taxBps > 0 ? (
               <>
                 {" "}
-                — employee nets{" "}
+                - employee nets{" "}
                 <span className="font-mono text-emerald-300">
                   {formatUsdc((parsedAmount! * BigInt(10_000 - taxBps)) / 10_000n)}
                 </span>{" "}
@@ -217,7 +217,7 @@ export default function CreateStreamPage() {
                     spender: BASE_SIDE.messenger,
                     amount: parsedAmount + fastMaxFee(parsedAmount),
                   },
-                  label: `Burned ${formatUsdc(parsedAmount)} USDC on Base Sepolia — Circle attests and the stream opens on Arc in ~20s`,
+                  label: `Burned ${formatUsdc(parsedAmount)} USDC on Base Sepolia - Circle attests and the stream opens on Arc in ~20s`,
                 });
               } else {
                 void send({

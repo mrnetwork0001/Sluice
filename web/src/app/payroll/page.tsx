@@ -92,7 +92,7 @@ function parseRoster(text: string, mode: AllocationMode, budget: bigint): Row[] 
   if (valid.length > 0 && totalBps !== 10_000n) {
     const off = Number(totalBps) / 100;
     return rows.map((row) =>
-      row.error ? row : { ...row, error: `Shares total ${off}% — must be exactly 100%` },
+      row.error ? row : { ...row, error: `Shares total ${off}% - must be exactly 100%` },
     );
   }
   let allocated = 0n;
@@ -158,7 +158,7 @@ export default function PayrollPage() {
     <div>
       <PageHeader
         title="Payroll run"
-        sub="Open salary streams for your whole team in a single transaction — paste a roster or drop a CSV."
+        sub="Open salary streams for your whole team in a single transaction - paste a roster or drop a CSV."
       />
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
@@ -188,7 +188,7 @@ export default function PayrollPage() {
             <div className="mb-3">
               <Field
                 label="Total payroll budget (USDC)"
-                hint="Each row takes a percentage of this — shares must total 100%"
+                hint="Each row takes a percentage of this - shares must total 100%"
               >
                 <input
                   className={inputClass}
@@ -332,7 +332,7 @@ export default function PayrollPage() {
                 onChange={(event) => setFundFrom(event.target.value as "arc" | "base")}
               >
                 <option value="arc">This wallet on Arc Testnet</option>
-                <option value="base">Treasury on Base Sepolia — via CCTP</option>
+                <option value="base">Treasury on Base Sepolia - via CCTP</option>
               </select>
               {fundFrom === "base" ? (
                 <p className="mt-2 text-xs leading-relaxed text-zinc-500">
@@ -341,7 +341,7 @@ export default function PayrollPage() {
                   {mode === "percent" ? (
                     <>
                       CCTP deducts a transfer fee, so the exact arriving amount is unknown when you
-                      sign — percentages apply cleanly to whatever lands.
+                      sign - percentages apply cleanly to whatever lands.
                     </>
                   ) : (
                     <>
@@ -368,13 +368,13 @@ export default function PayrollPage() {
                     <span className="font-mono">{shortAddr(taxVault)}</span> on every withdrawal
                   </>
                 ) : null}
-                . Escrow is pulled once and the whole run settles atomically — if one row is bad,
+                . Escrow is pulled once and the whole run settles atomically - if one row is bad,
                 nothing is created.
               </p>
             ) : null}
             {shortfall ? (
               <p className="mb-3 text-xs text-amber-300">
-                Wallet holds {formatUsdc(balance as bigint)} USDC — {formatUsdc(total - (balance as bigint))} short
+                Wallet holds {formatUsdc(balance as bigint)} USDC - {formatUsdc(total - (balance as bigint))} short
                 of this run.
               </p>
             ) : null}
@@ -420,7 +420,7 @@ export default function PayrollPage() {
                       spender: BASE_SIDE.messenger,
                       amount: total + fastMaxFee(total),
                     },
-                    label: `Burned ${formatUsdc(total)} USDC on Base Sepolia — ${valid.length} streams open on Arc once Circle attests`,
+                    label: `Burned ${formatUsdc(total)} USDC on Base Sepolia - ${valid.length} streams open on Arc once Circle attests`,
                   });
                   return;
                 }
@@ -434,7 +434,7 @@ export default function PayrollPage() {
                     vault,
                   ],
                   usdcApproval: total,
-                  label: `Payroll run complete — ${valid.length} streams opened for ${formatUsdc(total)} USDC`,
+                  label: `Payroll run complete - ${valid.length} streams opened for ${formatUsdc(total)} USDC`,
                 });
               }}
             >

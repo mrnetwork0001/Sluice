@@ -12,7 +12,7 @@ import { Badge, Card, CardTitle } from "@/components/ui";
 
 /**
  * Circle Gateway panel: the employer's USDC across every supported chain as one
- * spendable number. Payroll capital is rarely where payroll runs — this is the
+ * spendable number. Payroll capital is rarely where payroll runs - this is the
  * treasury view that makes that a non-problem.
  */
 export function UnifiedBalancePanel() {
@@ -72,12 +72,12 @@ export function UnifiedBalancePanel() {
       ) : !loading ? (
         <p className="mt-3 text-xs leading-relaxed text-zinc-500">
           No Gateway balance yet. Deposit USDC into Gateway from any supported chain and it becomes
-          instantly spendable on Arc — payroll no longer has to sit on the chain it runs on.
+          instantly spendable on Arc - payroll no longer has to sit on the chain it runs on.
         </p>
       ) : null}
 
       <p className="mt-4 text-xs leading-relaxed text-zinc-600">
-        Queried across {GATEWAY_CHAINS.length} EVM testnets, permissionlessly from Circle — no API
+        Queried across {GATEWAY_CHAINS.length} EVM testnets, permissionlessly from Circle - no API
         key, no proxy. Gateway also covers non-EVM domains (Solana Devnet), which answer to a Solana
         address rather than this one.
       </p>

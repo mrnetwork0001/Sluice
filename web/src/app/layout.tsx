@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sluice — Streaming Payroll on Arc",
+  title: "Sluice - Streaming Payroll on Arc",
   description:
     "Stream USDC salaries block-by-block on Arc. Split, sell, insure, and automate your income streams.",
 };

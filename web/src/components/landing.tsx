@@ -7,12 +7,11 @@ import { useSluiceAddress, useStreamIds } from "@/lib/hooks";
 import { sluiceAbi } from "@/lib/sluice";
 import { formatUsdc } from "@/lib/format";
 import { arcTestnet } from "@/lib/arc";
-import { ConnectButton } from "./connect-button";
 import { Badge, Card, ProgressBar } from "./ui";
 
 /* ------------------------------------------------------------------ hero demo */
 
-const DEMO_RATE = 1_929n; // µUSDC per tick (0.001929 USDC/s — a 5,000/30d stream)
+const DEMO_RATE = 1_929n; // µUSDC per tick (0.001929 USDC/s - a 5,000/30d stream)
 const DEMO_TARGET = 5_000_000_000n; // 5,000 USDC
 
 /** Purely visual per-second stream ticker for the hero. */
@@ -89,16 +88,16 @@ const steps = [
   {
     n: "01",
     title: "Employer escrows once",
-    body: "Fund a stream with USDC, set a duration and a tax split. The escrow starts flowing the same block — on Arc, gas is USDC too, so payroll never touches another token.",
+    body: "Fund a stream with USDC, set a duration and a tax split. The escrow starts flowing the same block - on Arc, gas is USDC too, so payroll never touches another token.",
   },
   {
     n: "02",
     title: "Salary vests every second",
-    body: "The stream is minted to the employee as an ERC-3525 token whose value is the USDC left to flow. No pay cycles, no batch runs — balance grows block by block.",
+    body: "The stream is minted to the employee as an ERC-3525 token whose value is the USDC left to flow. No pay cycles, no batch runs - balance grows block by block.",
   },
   {
     n: "03",
-    title: "Employee withdraws — or automates",
+    title: "Employee withdraws - or automates",
     body: "Withdraw any vested amount; the tax share routes itself to the vault. Auto-trigger rules convert a slice of every paycheck with Circle Swap Kit on the way out.",
   },
 ];
@@ -107,25 +106,25 @@ const features = [
   {
     tag: "ERC-3525",
     title: "Streams are semi-fungible tokens",
-    body: "Each salary is an SFT: token value equals the remaining streamable USDC. Split part of a stream to another address, merge same-schedule streams, or transfer the whole thing — vesting math carries over pro-rata.",
+    body: "Each salary is an SFT: token value equals the remaining streamable USDC. Split part of a stream to another address, merge same-schedule streams, or transfer the whole thing - vesting math carries over pro-rata.",
     fn: "transferFrom(streamId, to, value)",
   },
   {
     tag: "Tax rails",
-    title: "Compliance splits, enforced on-chain",
+    title: "Compliance splits, enforced onchain",
     body: "Every withdrawal automatically routes the configured basis points to a tax vault before the employee sees a cent. Set it per stream: 8% payroll tax, 0% for contractors.",
     fn: "withdrawFromStream(streamId, amount)",
   },
   {
     tag: "Factoring",
     title: "Sell future income for cash today",
-    body: "List a stream at a discount and any liquidity provider can buy it — payment goes straight to the seller, the SFT and all future flow transfer atomically to the buyer.",
+    body: "List a stream at a discount and any liquidity provider can buy it - payment goes straight to the seller, the SFT and all future flow transfer atomically to the buyer.",
     fn: "listStreamForSale · buyStream",
   },
   {
     tag: "Advances",
     title: "Payday loans without the loan shark",
-    body: "Borrow up to 50% of your unwithdrawn stream value instantly. No interest, no liquidations — the advance repays itself as salary keeps vesting.",
+    body: "Borrow up to 50% of your unwithdrawn stream value instantly. No interest, no liquidations - the advance repays itself as salary keeps vesting.",
     fn: "borrowSalaryAdvance(streamId, amount)",
   },
   {
@@ -137,7 +136,7 @@ const features = [
   {
     tag: "Swap Kit",
     title: "Stream-to-DeFi auto-triggers",
-    body: "Per-wallet rules run after every withdrawal — swap 20% to EURC, stack WBTC, dollar-cost-average by paycheck instead of by calendar. Powered by Circle Swap Kit through your own wallet.",
+    body: "Per-wallet rules run after every withdrawal - swap 20% to EURC, stack WBTC, dollar-cost-average by paycheck instead of by calendar. Powered by Circle Swap Kit through your own wallet.",
     fn: "web/src/lib/automation.ts",
   },
 ];
@@ -148,8 +147,8 @@ const personas = [
     points: [
       "One escrow transaction replaces the entire pay run",
       "Tax withholding enforced by the contract, not the back office",
-      "Cancel anytime — vested pays out, unvested refunds",
-      "Idle escrow routes to cross-chain yield via CCTP (roadmap)",
+      "Cancel anytime - vested pays out, unvested refunds",
+      "Idle escrow routes to cross-chain yield via CCTP, live on Arc",
     ],
   },
   {
@@ -164,10 +163,10 @@ const personas = [
   {
     title: "For liquidity providers",
     points: [
-      "Buy discounted streams — collect the full face value",
+      "Buy discounted streams - collect the full face value",
       "Stake the insurance pool and earn every premium",
       "Sub-second finality on Arc keeps positions atomic",
-      "All positions are on-chain, transferable, composable",
+      "All positions are onchain, transferable, composable",
     ],
   },
 ];
@@ -178,7 +177,7 @@ const rails = [
   ["ERC-3525", "semi-fungible salary streams"],
   ["Circle Swap Kit", "paycheck auto-conversion"],
   ["CCTP v2", "cross-chain treasury routing"],
-  ["Foundry", "16 tests, 100% core coverage"],
+  ["Foundry", "44 tests across payroll and cross-chain"],
 ];
 
 /* ------------------------------------------------------------------ page */
@@ -219,11 +218,7 @@ export function Landing() {
       {/* Hero */}
       <section className="grid items-center gap-10 py-12 lg:grid-cols-2 lg:py-16">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Programmable Money Hackathon · built on Arc
-          </div>
-          <h1 className="mt-5 text-5xl font-black leading-[1.05] tracking-tight text-zinc-50">
+          <h1 className="text-5xl font-black leading-[1.05] tracking-tight text-zinc-50">
             Payroll that{" "}
             <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
               flows
@@ -237,13 +232,9 @@ export function Landing() {
             employer default.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            {isConnected ? (
-              <Link href="/dashboard" className={primaryLinkClass}>
-                Open dashboard →
-              </Link>
-            ) : (
-              <ConnectButton />
-            )}
+            <Link href="/dashboard" className={primaryLinkClass}>
+              Launch App
+            </Link>
             <Link
               href="/marketplace"
               className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/10"
@@ -253,7 +244,7 @@ export function Landing() {
           </div>
           {!isConnected ? (
             <p className="mt-3 text-xs text-zinc-600">
-              Live on Arc Testnet — grab gas USDC at{" "}
+              Live on Arc Testnet - grab gas USDC at{" "}
               <a
                 href="https://faucet.circle.com"
                 target="_blank"
@@ -273,7 +264,7 @@ export function Landing() {
       <section className="grid gap-6 border-y border-white/[0.06] py-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-cyan-300">
-            {escrowed !== undefined ? formatUsdc(escrowed) : "—"}
+            {escrowed !== undefined ? formatUsdc(escrowed) : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
             USDC streamed through Sluice
@@ -281,7 +272,7 @@ export function Landing() {
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-emerald-300">
-            {settled !== undefined ? formatUsdc(settled) : "—"}
+            {settled !== undefined ? formatUsdc(settled) : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
             USDC settled to workers
@@ -289,7 +280,7 @@ export function Landing() {
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-zinc-50">
-            {streamCount !== undefined ? streamCount.toString() : (streamRefs?.length ?? "—")}
+            {streamCount !== undefined ? streamCount.toString() : (streamRefs?.length ?? "-")}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
             salary streams opened
@@ -297,7 +288,7 @@ export function Landing() {
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-amber-300">
-            {taxWithheld !== undefined ? formatUsdc(taxWithheld) : "—"}
+            {taxWithheld !== undefined ? formatUsdc(taxWithheld) : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
             USDC auto-withheld as tax
@@ -328,7 +319,7 @@ export function Landing() {
         <SectionHeading
           eyebrow="Features"
           title="Income as a programmable asset"
-          sub="Five primitives, one ERC-3525 contract. Everything below is live in this build — click through after connecting."
+          sub="Five primitives, one ERC-3525 contract. Everything below is live in this build - click through after connecting."
         />
         <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
@@ -385,17 +376,13 @@ export function Landing() {
           Open the <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">sluice</span>.
         </h2>
         <p className="mx-auto mt-3 max-w-md text-zinc-400">
-          Connect a wallet to stream your first salary, or grab the demo wallet and poke every
-          feature on a seeded local chain.
+          Open the app to stream your first salary, trade future income on the
+          marketplace, and watch idle escrow earn yield - live on Arc Testnet.
         </p>
         <div className="mt-6 flex justify-center">
-          {isConnected ? (
-            <Link href="/dashboard" className={primaryLinkClass}>
-              Open dashboard →
-            </Link>
-          ) : (
-            <ConnectButton />
-          )}
+          <Link href="/dashboard" className={primaryLinkClass}>
+            Launch App
+          </Link>
         </div>
       </section>
     </div>

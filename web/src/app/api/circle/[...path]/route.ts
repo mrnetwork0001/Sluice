@@ -7,7 +7,7 @@ import { NextRequest } from "next/server";
  * browser is blocked by CORS (the SDK sends an `x-user-*` header the service
  * doesn't allow cross-origin). Requests are forwarded from the server instead,
  * where CORS does not apply. Only Circle's routing/quote/status calls travel
- * this path — swap transactions are still signed and broadcast by the user's
+ * this path - swap transactions are still signed and broadcast by the user's
  * wallet in the browser.
  */
 
@@ -23,7 +23,7 @@ function forwardedHeaders(request: NextRequest): HeadersInit {
     const value = request.headers.get(name);
     if (value) headers[name] = value;
   }
-  // Preserve the SDK's own telemetry headers (x-user-agent etc.) — harmless
+  // Preserve the SDK's own telemetry headers (x-user-agent etc.) - harmless
   // upstream, and they are the reason the browser call is blocked.
   request.headers.forEach((value, name) => {
     if (name.startsWith("x-") && !headers[name]) headers[name] = value;

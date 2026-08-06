@@ -172,7 +172,7 @@ export function TxBanner({ status, onDismiss }: { status: TxStatus; onDismiss: (
   );
 }
 
-/** Explorer link for an on-chain transaction. */
+/** Explorer link for an onchain transaction. */
 export function TxLink({
   chainId,
   hash,

@@ -62,7 +62,7 @@ export interface StreamRef {
  * Stream discovery by direct enumeration rather than log scanning.
  *
  * Stream ids are sequential and never burned, so a couple of multicall batches
- * read the whole set from contract state — instant, immune to the RPC's
+ * read the whole set from contract state - instant, immune to the RPC's
  * 10,000-block getLogs cap, and it yields the CURRENT owner (which log-based
  * discovery cannot: streams change hands via the marketplace).
  */
@@ -107,7 +107,7 @@ export function useStreamIds() {
   });
 }
 
-/** Full on-chain state for one stream. */
+/** Full onchain state for one stream. */
 export function useStream(id: bigint | undefined) {
   const address = useSluiceAddress();
   const enabled = Boolean(address && id !== undefined);
@@ -160,7 +160,7 @@ export type TxStatus =
       phase: "success";
       hash: `0x${string}`;
       label: string;
-      /** Chain the transaction landed on — picks the right block explorer. */
+      /** Chain the transaction landed on - picks the right block explorer. */
       chainId: number;
       /** Set when an ERC-20 approval was needed first. */
       approvalHash?: `0x${string}`;
@@ -172,7 +172,7 @@ interface SendOptions {
   args: readonly unknown[];
   /** When set, ensures the Sluice contract has a USDC allowance ≥ this before sending. */
   usdcApproval?: bigint;
-  /** Target contract override — defaults to the Sluice contract. */
+  /** Target contract override - defaults to the Sluice contract. */
   to?: { address: `0x${string}`; abi: readonly unknown[] };
   /** Run the tx on this chain, switching the wallet there (and back) as needed. */
   chainId?: number;

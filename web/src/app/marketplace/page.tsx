@@ -39,7 +39,7 @@ export default function MarketplacePage() {
     <div>
       <PageHeader
         title="Stream marketplace"
-        sub="Buy future salary streams at a discount — sellers get instant liquidity, you collect the full stream."
+        sub="Buy future salary streams at a discount - sellers get instant liquidity, you collect the full stream."
       />
       {isLoading ? (
         <div className="text-sm text-zinc-500">Scanning chain for listings…</div>
@@ -105,14 +105,14 @@ function InsurancePoolCard() {
 
   return (
     <Card>
-      <CardTitle hint="credit default pool — 0.5% premiums accrue to stakers">
+      <CardTitle hint="credit default pool - 0.5% premiums accrue to stakers">
         Insurance pool
       </CardTitle>
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
           <div className="text-xs uppercase tracking-wider text-zinc-500">Pool balance</div>
           <div className="mt-1 font-mono text-xl font-semibold tabular-nums text-cyan-300">
-            {poolBalance !== undefined ? formatUsdc(poolBalance as bigint) : "—"} USDC
+            {poolBalance !== undefined ? formatUsdc(poolBalance as bigint) : "-"} USDC
           </div>
         </div>
         <div>
@@ -302,7 +302,7 @@ function Listing({ stream }: { stream: Stream }) {
                       spender: BASE_SIDE.messenger,
                       amount: stream.salePrice + fastMaxFee(stream.salePrice),
                     },
-                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base Sepolia — Circle attests and the gate settles the purchase on Arc in ~20s`,
+                    label: `Burned ${formatUsdc(stream.salePrice)} USDC on Base Sepolia - Circle attests and the gate settles the purchase on Arc in ~20s`,
                   })
                 }
               >

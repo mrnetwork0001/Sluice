@@ -196,7 +196,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
             onChange={(event) => setDest(event.target.value as "arc" | "base")}
           >
             <option value="arc">Pay out here on Arc Testnet</option>
-            <option value="base">Pay out on Base Sepolia — via CCTP</option>
+            <option value="base">Pay out on Base Sepolia - via CCTP</option>
           </select>
         </div>
       ) : null}
@@ -223,7 +223,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
                 to: { address: GATE_ADDRESS, abi: gateAbi },
                 functionName: "withdrawToChain",
                 args: [stream.id, parsed, BASE_DOMAIN, address],
-                label: `Withdrew ${formatUsdc(parsed)} USDC — ${formatUsdc(net)} net exiting to Base Sepolia via CCTP`,
+                label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net exiting to Base Sepolia via CCTP`,
                 onSuccess: () => setAmount(""),
               });
             } else {
@@ -253,7 +253,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
           key={index}
           className="mt-2 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3.5 py-2.5 text-xs text-cyan-200"
         >
-          ⚡ Auto-trigger: {entry.pct}% → {entry.tokenOut} ({entry.amountIn} USDC) —{" "}
+          ⚡ Auto-trigger: {entry.pct}% → {entry.tokenOut} ({entry.amountIn} USDC) -{" "}
           {entry.status === "executed" ? "executed via Circle Swap Kit" : entry.status}
           <div className="mt-0.5 text-cyan-200/60">{entry.detail}</div>
           {entry.txHash ? (
@@ -343,7 +343,7 @@ function MarketplaceCard({ stream }: { stream: Stream }) {
 
   return (
     <Card>
-      <CardTitle hint="factoring — instant liquidity">Sell this stream</CardTitle>
+      <CardTitle hint="factoring - instant liquidity">Sell this stream</CardTitle>
       {listed ? (
         <>
           <p className="mb-3 text-sm text-zinc-400">
@@ -398,7 +398,7 @@ function MarketplaceCard({ stream }: { stream: Stream }) {
               {discount > 0 ? (
                 <>Buyer gets a <span className="text-amber-300">{discount.toFixed(1)}%</span> discount.</>
               ) : (
-                <span className="text-amber-300">Price is above remaining value — unlikely to sell.</span>
+                <span className="text-amber-300">Price is above remaining value - unlikely to sell.</span>
               )}
             </div>
           ) : null}
@@ -426,7 +426,7 @@ function SplitCard({ stream }: { stream: Stream }) {
     <Card>
       <CardTitle hint="ERC-3525 value transfer">Split stream</CardTitle>
       <p className="mb-3 text-xs text-zinc-500">
-        Carve out part of this stream into a new SFT for another address — schedule and tax terms
+        Carve out part of this stream into a new SFT for another address - schedule and tax terms
         carry over pro-rata. {stream.salePrice > 0n ? "Delist before splitting." : ""}
       </p>
       <div className="space-y-2">
@@ -554,7 +554,7 @@ function TopUpCard({ stream }: { stream: Stream }) {
     <Card>
       <CardTitle hint="recurring payroll">Top up this stream</CardTitle>
       <p className="mb-3 text-xs leading-relaxed text-zinc-500">
-        Extend the runway instead of opening a new stream each cycle — the per-second rate stays
+        Extend the runway instead of opening a new stream each cycle - the per-second rate stays
         identical and the end date moves out. The employee keeps the same token, schedule, and
         insurance.
       </p>
@@ -599,7 +599,7 @@ function EmployerCard({ stream }: { stream: Stream }) {
       <CardTitle hint="employer controls">Cancel stream</CardTitle>
       <p className="mb-3 text-xs text-zinc-500">
         Stops the stream: vested salary pays out to the employee immediately (tax applied), the
-        unvested remainder refunds to you{stream.insured ? " — the employee can then claim it from the insurance pool" : ""}.
+        unvested remainder refunds to you{stream.insured ? " - the employee can then claim it from the insurance pool" : ""}.
       </p>
       <Button
         variant="danger"

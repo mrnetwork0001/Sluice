@@ -3,11 +3,11 @@
 import { formatUsdcExact } from "./format";
 
 /**
- * Stream-to-DeFi auto-triggers — real Circle Swap Kit swaps on Arc Testnet.
+ * Stream-to-DeFi auto-triggers - real Circle Swap Kit swaps on Arc Testnet.
  *
  * Rules run after every successful withdrawal: a percentage of the net
  * (post-tax) payout is converted through Swap Kit using the connected wallet.
- * Swaps are executed on-chain against Circle's routing service — the same call
+ * Swaps are executed onchain against Circle's routing service - the same call
  * path a user would take manually, no simulation.
  */
 
@@ -86,7 +86,7 @@ function injectedProvider(): EthereumProvider | undefined {
  * Circle's Stablecoin Service blocks browser calls via CORS (the SDK sends an
  * `x-user-*` header the service doesn't allow cross-origin), and its base URL is
  * an internal constant with no config hook. So we transparently reroute just
- * those API calls through this app's server-side proxy — the swap transaction
+ * those API calls through this app's server-side proxy - the swap transaction
  * itself is still built, signed, and broadcast by the user's wallet.
  */
 const CIRCLE_API_ORIGIN = "https://api.circle.com";
@@ -108,7 +108,7 @@ function routeCircleApiThroughProxy() {
   fetchPatched = true;
 }
 
-/** Swap Kit modules are heavy and browser-only — load them on demand. */
+/** Swap Kit modules are heavy and browser-only - load them on demand. */
 async function loadSwapKit() {
   routeCircleApiThroughProxy();
   const [kit, adapterModule] = await Promise.all([
@@ -137,7 +137,7 @@ export async function quoteSwap(amountHuman: string, tokenOut: AutoToken): Promi
   const { kit, createViemAdapterFromProvider } = await loadSwapKit();
   const adapter = await createViemAdapterFromProvider({ provider: provider as never });
   const context = kit.createSwapKitContext();
-  // Note: `address` must be omitted for user-controlled adapters — Swap Kit
+  // Note: `address` must be omitted for user-controlled adapters - Swap Kit
   // resolves it from the connected wallet and rejects an explicit value.
   const estimate = await kit.estimate(context, {
     from: { adapter, chain: SWAPKIT_ARC_CHAIN as never },
@@ -172,7 +172,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s — check your wallet for a pending signature.`)), ms),
+      setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s - check your wallet for a pending signature.`)), ms),
     ),
   ]);
 }
@@ -273,8 +273,8 @@ export async function runAutoTriggers(params: {
         status: "skipped",
         detail:
           slice === 0n
-            ? "Withdrawal slice rounded to zero — nothing to swap."
-            : `Slice is ${amountHuman} USDC — below the ${formatUsdcExact(MIN_SWAP_USDC)} USDC minimum, where Arc gas would exceed the conversion.`,
+            ? "Withdrawal slice rounded to zero - nothing to swap."
+            : `Slice is ${amountHuman} USDC - below the ${formatUsdcExact(MIN_SWAP_USDC)} USDC minimum, where Arc gas would exceed the conversion.`,
       };
     } else {
       const outcome = await executeSwap(amountHuman, rule.tokenOut);
