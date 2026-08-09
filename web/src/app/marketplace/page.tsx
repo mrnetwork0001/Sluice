@@ -321,7 +321,7 @@ function Listing({ stream }: { stream: Stream }) {
                   })
                 }
               >
-                Buy from {buySide.label} via CCTP ⚡
+                Buy from {buySide.label} via CCTP
               </Button>
             ) : null}
             {canCrossChain && GATE_ADDRESS ? (

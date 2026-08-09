@@ -232,7 +232,7 @@ function RevenueSection({ sluice }: { sluice: `0x${string}` | undefined }) {
         : []),
     ],
     allowFailure: true,
-    query: { enabled: Boolean(TREASURY_ADDRESS || sluice), refetchInterval: 15_000 },
+    query: { enabled: Boolean(TREASURY_ADDRESS || sluice), refetchInterval: 4_000 },
   });
   const yieldEarned =
     data?.[0]?.status === "success" ? (data[0].result as bigint) : undefined;
@@ -475,7 +475,7 @@ export function Landing() {
         : []),
     ],
     allowFailure: true,
-    query: { enabled: Boolean(sluice), refetchInterval: 10_000 },
+    query: { enabled: Boolean(sluice), refetchInterval: 4_000 },
   });
   const readMetric = (index: number): bigint | undefined => {
     const entry = (
