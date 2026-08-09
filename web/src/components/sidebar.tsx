@@ -8,6 +8,7 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { arcTestnet } from "@/lib/arc";
 import { CHAIN_LABELS } from "@/lib/wagmi";
 import { useStreamIds, useUsdcBalance } from "@/lib/hooks";
+import { loadCircleSession, onCircleSessionChange } from "@/lib/circleSession";
 import { explorerAddressUrl } from "@/lib/explorer";
 import { formatUsdc, shortAddr } from "@/lib/format";
 
@@ -183,6 +184,41 @@ function ConnectionCard() {
   );
 }
 
+/**
+ * The Circle payroll wallet is not an injected wallet, so it can never appear
+ * as wagmi's "connected" state - it gets its own card whenever a signed-in
+ * session (email or PIN) exists, so onboarded employees see they're in.
+ */
+function CirclePayrollCard() {
+  const [address, setAddress] = useState<`0x${string}` | undefined>();
+  useEffect(() => {
+    const read = () => setAddress(loadCircleSession()?.address as `0x${string}` | undefined);
+    read();
+    return onCircleSessionChange(read);
+  }, []);
+  const { data: balance } = useUsdcBalance(address);
+  if (!address) return null;
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        Payroll wallet · signed in
+      </div>
+      <div className="mt-1.5 font-mono text-xs text-zinc-300">{shortAddr(address)}</div>
+      <div className="font-mono text-sm font-semibold tabular-nums text-emerald-300">
+        {balance !== undefined ? formatUsdc(balance as bigint) : "-"}
+        <span className="ml-1 text-[10px] font-normal text-zinc-500">USDC</span>
+      </div>
+      <Link
+        href="/onboard"
+        className="mt-2 block rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-center text-xs text-zinc-300 transition-colors hover:bg-white/10"
+      >
+        Manage · withdraw
+      </Link>
+    </div>
+  );
+}
+
 /** Icons-only balance pill, shown when the rail is collapsed. */
 function CollapsedConnection() {
   const { address, isConnected, chainId } = useAccount();
@@ -338,6 +374,7 @@ export function SidebarContent({
       {/* Wallet lives at the bottom of the rail, out of the navigation flow. */}
       <div className={`mt-6 pb-4 ${collapsed ? "px-2" : "px-3"}`}>
         {collapsed ? <CollapsedConnection /> : <ConnectionCard />}
+        {!collapsed ? <CirclePayrollCard /> : null}
       </div>
     </div>
   );

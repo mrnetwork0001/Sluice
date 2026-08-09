@@ -5,6 +5,7 @@ import { useBalance } from "wagmi";
 import { arcTestnet } from "@/lib/arc";
 import { explorerAddressUrl, explorerTxUrl, shortHash } from "@/lib/explorer";
 import { SLUICE_ADDRESSES } from "@/lib/sluice";
+import { clearCircleSession, loadCircleSession, saveCircleSession } from "@/lib/circleSession";
 import { useStream, useStreamIds } from "@/lib/hooks";
 import { formatUsdc, shortAddr } from "@/lib/format";
 import { Badge, Button, Card, CardTitle, PageHeader, inputClass } from "@/components/ui";
@@ -195,6 +196,23 @@ export default function OnboardPage() {
   const sluice = SLUICE_ADDRESSES[arcTestnet.id];
 
   useEffect(() => {
+    // A stored (unexpired) session survives page refreshes without another
+    // OTP round-trip - restore it and its wallets before falling back to the
+    // PIN flow's resume-by-userId.
+    const stored = loadCircleSession();
+    if (stored) {
+      setSession({ userToken: stored.userToken, encryptionKey: stored.encryptionKey });
+      if (stored.userId) setUserId(stored.userId);
+      api<{ wallets: CircleWallet[] }>("wallets", { userToken: stored.userToken })
+        .then((result) => setWallets(result.wallets ?? []))
+        .catch(() => {
+          // Token no longer valid despite the expiry margin - sign in again.
+          clearCircleSession();
+          setSession(undefined);
+          setStatus("Session expired - sign in with your email to reach your wallet.");
+        });
+      return;
+    }
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved) setUserId(saved);
   }, []);
@@ -205,6 +223,7 @@ export default function OnboardPage() {
     setSession(fresh);
     const result = await api<{ wallets: CircleWallet[] }>("wallets", { userToken: fresh.userToken });
     setWallets(result.wallets ?? []);
+    saveCircleSession({ ...fresh, userId: id, address: result.wallets?.[0]?.address });
     return fresh;
   };
 
@@ -368,8 +387,12 @@ export default function OnboardPage() {
       // userId (Circle rejects createUserToken for them) - their way back in
       // is signing in with the email again, on any device.
       if (who.userId) setUserId(who.userId);
+      saveCircleSession({ ...login, userId: who.userId });
       setStatus("Signed in - loading your wallet…");
       const found = await waitForWallet(login.userToken);
+      if (found.length > 0) {
+        saveCircleSession({ ...login, userId: who.userId, address: found[0].address });
+      }
       setStatus(
         found.length > 0 ? undefined : "Signed in. This account has no wallet yet - create one below.",
       );
@@ -409,6 +432,7 @@ export default function OnboardPage() {
 
   const reset = () => {
     window.localStorage.removeItem(STORAGE_KEY);
+    clearCircleSession();
     setUserId(undefined);
     setSession(undefined);
     setWallets([]);
