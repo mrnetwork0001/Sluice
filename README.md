@@ -239,6 +239,12 @@ PRIVATE_KEY=0x... node web/scripts/cctp-relayer.mjs
 Without it a burn is still attested by Circle, but nothing mints on the
 destination chain — the stream will not appear.
 
+The relayer wallet pays gas **on the destination chain** of every delivery, so
+it needs a small native balance on each chain you fund from or withdraw to
+(Base Sepolia ETH, Sepolia ETH, Fuji AVAX, …). It prints a per-chain gas report
+at startup and HOLDs deliveries to unfunded chains - without poisoning them -
+until the wallet is topped up, at which point they deliver automatically.
+
 **Where to see each feature**
 
 | Feature | Where to click |

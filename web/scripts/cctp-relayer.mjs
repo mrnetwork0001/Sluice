@@ -275,6 +275,18 @@ async function processMessage(id, msg) {
   }
 
   if (msg.status === "pending") {
+    // An unfunded destination is an operator problem, not a message problem:
+    // burning retry attempts on it poisons messages that would deliver fine the
+    // moment gas arrives. Wait, warn once a minute, and keep the message fresh.
+    const gas = await dst.pub.getBalance({ address: account.address });
+    if (gas === 0n) {
+      const now = Date.now();
+      if (!msg.gasWarnedAt || now - msg.gasWarnedAt > 60_000) {
+        msg.gasWarnedAt = now;
+        log(`HOLD ${id.slice(0, 28)}…: relayer has 0 gas on ${dst.chain.name} - fund ${account.address} to deliver`);
+      }
+      return;
+    }
     const attested = await fetchAttestation(src.domain, msg.txHash);
     if (!attested) return; // not attested yet — not a failure, no attempt burned
     try {
@@ -415,6 +427,23 @@ async function processReturns() {
 
 log(`relayer ${account.address}`);
 log(`Arc gate=${depArc.gate ?? "?"} treasury=${depArc.treasury ?? "?"} | Base vault=${depBase.remoteVault ?? "?"}`);
+
+// Deliveries are paid by this wallet ON THE DESTINATION chain - a side with
+// zero native balance can discover burns but never mint them. Say so up front.
+for (const side of Object.values(sides)) {
+  if (side.solana) continue;
+  try {
+    const gas = await side.pub.getBalance({ address: account.address });
+    const sym = side.chain.nativeCurrency?.symbol ?? "gas";
+    log(
+      gas === 0n
+        ? `WARNING: 0 ${sym} on ${side.chain.name} - deliveries TO this chain will hold until ${account.address} is funded`
+        : `gas on ${side.chain.name}: ${(Number(gas) / 1e18).toFixed(4)} ${sym}`,
+    );
+  } catch {
+    log(`gas on ${side.chain.name}: unreadable (RPC error)`);
+  }
+}
 
 let busy = false;
 setInterval(async () => {
