@@ -262,9 +262,21 @@ function Listing({ stream }: { stream: Stream }) {
           </Button>
         ) : (
           <>
+            {/* Withdrawals and advances do not clear a listing on-chain, so a
+                stale ask can exceed what the stream is still worth. The live
+                remaining value is re-read every poll - block the trade when the
+                buyer would overpay. */}
+            {stream.salePrice >= stream.remaining ? (
+              <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-xs leading-relaxed text-amber-300">
+                Stale listing: the ask ({formatUsdc(stream.salePrice)} USDC) is no
+                longer below this stream&apos;s remaining value (
+                {formatUsdc(stream.remaining)} USDC) - the seller has withdrawn or
+                advanced since listing. Buying is disabled.
+              </div>
+            ) : null}
             <Button
               className="w-full"
-              disabled={busy || !address}
+              disabled={busy || !address || stream.salePrice >= stream.remaining}
               onClick={() =>
                 void send({
                   functionName: "buyStream",
@@ -280,7 +292,7 @@ function Listing({ stream }: { stream: Stream }) {
               <Button
                 variant="ghost"
                 className="w-full"
-                disabled={busy || !address}
+                disabled={busy || !address || stream.salePrice >= stream.remaining}
                 onClick={() =>
                   address &&
                   GATE_ADDRESS &&

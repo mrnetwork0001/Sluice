@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
+import { parseAbiItem } from "viem";
+import { SLUICE_ADDRESSES } from "@/lib/sluice";
 import { useNow, useSluiceWrite, useStream } from "@/lib/hooks";
 import { liveAvailable, liveVested, maxAdvance, type Stream } from "@/lib/sluice";
 import { loadRules, runAutoTriggers, type TriggerLogEntry } from "@/lib/automation";
@@ -143,6 +145,7 @@ function StreamDetail({ stream }: { stream: Stream }) {
         {isOwner && !stream.canceled ? <WithdrawCard stream={stream} available={available} /> : null}
         {isOwner && !stream.canceled ? <AdvanceCard stream={stream} /> : null}
         {isOwner && !stream.canceled ? <MarketplaceCard stream={stream} /> : null}
+        {isOwner && !stream.canceled ? <SellSliceCard stream={stream} /> : null}
         {isOwner && !stream.canceled ? <SplitCard stream={stream} /> : null}
         {isOwner ? <InsuranceCard stream={stream} /> : null}
         {isEmployer && !stream.canceled ? <TopUpCard stream={stream} /> : null}
@@ -496,6 +499,131 @@ function MarketplaceCard({ stream }: { stream: Stream }) {
           ) : null}
         </>
       )}
+      <TxBanner status={status} onDismiss={reset} />
+    </Card>
+  );
+}
+
+const transferValueEvent = parseAbiItem(
+  "event TransferValue(uint256 indexed fromTokenId, uint256 indexed toTokenId, uint256 value)",
+);
+
+/**
+ * Sell a slice of future income without giving up the rest: ERC-3525 split to
+ * self mints a child stream, which is immediately listed on the marketplace.
+ * Two transactions back-to-back; the parent keeps streaming to the owner.
+ */
+function SellSliceCard({ stream }: { stream: Stream }) {
+  const { send, status, reset, busy } = useSluiceWrite();
+  const { address } = useAccount();
+  const client = usePublicClient({ chainId: arcTestnet.id });
+  const [amount, setAmount] = useState("");
+  const [price, setPrice] = useState("");
+  const [listing, setListing] = useState(false);
+
+  const parsed = useMemo(() => {
+    try {
+      return parseUsdc(amount);
+    } catch {
+      return undefined;
+    }
+  }, [amount]);
+  const askPrice = useMemo(() => {
+    try {
+      return parseUsdc(price);
+    } catch {
+      return undefined;
+    }
+  }, [price]);
+
+  const discountPct =
+    parsed && askPrice && parsed > 0n && askPrice <= parsed
+      ? (Number(((parsed - askPrice) * 10_000n) / parsed) / 100).toFixed(1)
+      : undefined;
+
+  const sellSlice = () => {
+    if (!parsed || !askPrice || !address || !client) return;
+    void send({
+      functionName: "transferFrom",
+      args: [stream.id, address, parsed],
+      label: `Carved ${formatUsdc(parsed)} USDC into a sellable slice - listing it now…`,
+      onSuccess: async () => {
+        setListing(true);
+        try {
+          // The split just emitted TransferValue(parent -> child); the newest
+          // such event names the child token to list.
+          const latest = await client.getBlockNumber();
+          const logs = await client.getLogs({
+            address: SLUICE_ADDRESSES[arcTestnet.id]!,
+            event: transferValueEvent,
+            args: { fromTokenId: stream.id },
+            fromBlock: latest > 50n ? latest - 50n : 0n,
+            toBlock: latest,
+          });
+          const childId = logs.at(-1)?.args.toTokenId;
+          if (childId === undefined) return;
+          await send({
+            functionName: "listStreamForSale",
+            args: [childId, askPrice],
+            label: `Slice #${childId.toString()} listed for ${formatUsdc(askPrice)} USDC - the rest of your salary keeps streaming to you`,
+            onSuccess: () => {
+              setAmount("");
+              setPrice("");
+            },
+          });
+        } finally {
+          setListing(false);
+        }
+      },
+    });
+  };
+
+  return (
+    <Card className="border-emerald-400/15">
+      <CardTitle hint="split + list, one flow">Sell part of my salary</CardTitle>
+      <p className="mb-3 text-xs text-zinc-500">
+        Turn a slice of future income into cash today: the slice becomes its own
+        stream and goes straight to the marketplace, while the remainder keeps
+        vesting to you.{stream.salePrice > 0n ? " Delist this stream first." : ""}
+      </p>
+      <div className="space-y-2">
+        <input
+          className={inputClass}
+          placeholder={`Slice value (< ${formatUsdc(stream.remaining).replace(/,/g, "")})`}
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+        <input
+          className={inputClass}
+          placeholder="Ask price (USDC upfront)"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+        />
+      </div>
+      {discountPct ? (
+        <p className="mt-2 text-xs text-zinc-500">
+          Buyer pays <span className="text-zinc-300">{formatUsdc(askPrice!)}</span> now for{" "}
+          <span className="text-zinc-300">{formatUsdc(parsed!)}</span> of future flow - a{" "}
+          <span className="text-emerald-300">{discountPct}% discount</span> (0.5% take on sale).
+        </p>
+      ) : null}
+      <div className="mt-3">
+        <Button
+          disabled={
+            busy ||
+            listing ||
+            !parsed ||
+            parsed === 0n ||
+            parsed >= stream.remaining ||
+            !askPrice ||
+            askPrice === 0n ||
+            stream.salePrice > 0n
+          }
+          onClick={sellSlice}
+        >
+          {listing ? "Listing slice…" : "Split & list for sale"}
+        </Button>
+      </div>
       <TxBanner status={status} onDismiss={reset} />
     </Card>
   );

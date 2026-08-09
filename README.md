@@ -504,6 +504,10 @@ This is **hackathon software** - unaudited, and not production-ready:
   must be wired in the same transaction batch or an attacker can claim the gate —
   which is privileged (`withdrawFromStreamFor`). Production needs an owner,
   timelocks, and pausability.
+- Withdrawals and salary advances do **not** clear an active marketplace listing
+  on-chain (cancellation and splits do), so a stale ask can exceed the stream's
+  remaining value. The app re-reads remaining value live and refuses the
+  purchase; production would auto-delist on any value-reducing action.
 - Insured cancellation refunds the unvested balance to the employer *and* records
   the same amount as a claimable shortfall, and nothing prevents `employer ==
   recipient`. A production build needs that guard plus a funded, underwritten pool.
