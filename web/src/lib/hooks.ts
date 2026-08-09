@@ -203,7 +203,11 @@ export function useSluiceWrite() {
         return;
       }
       const homeChainId = currentChainId;
-      const txChainId = chainId ?? currentChainId;
+      // Sluice writes live on Arc unless a caller explicitly targets another
+      // chain (cross-chain funding burns pass their source chainId). Defaulting
+      // to the wallet's current chain sent withdrawals to codeless addresses
+      // when the user had switched networks to check a balance.
+      const txChainId = chainId ?? arcTestnet.id;
       const txClient = txChainId === currentChainId ? client : getPublicClient(wagmiConfig, { chainId: txChainId as never });
       if (!txClient) {
         setStatus({ phase: "error", message: `No RPC configured for chain ${txChainId}` });
