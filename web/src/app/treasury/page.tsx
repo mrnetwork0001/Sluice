@@ -9,7 +9,7 @@ import { treasuryAbi } from "@/lib/treasuryAbi";
 import { erc20Abi } from "@/lib/erc20Abi";
 import { TREASURY_ADDRESS, TREASURY_FROM_BLOCK, crossChainEnabled, domainLabel } from "@/lib/crosschain";
 import { arcTestnet } from "@/lib/arc";
-import { formatUsdc } from "@/lib/format";
+import { formatUsdc, formatUsdcExact, shortAddr } from "@/lib/format";
 import { Badge, Button, Card, CardTitle, EmptyState, PageHeader, Stat, TxBanner } from "@/components/ui";
 
 const activityEvents = [
@@ -80,7 +80,7 @@ function useTreasuryActivity() {
 }
 
 export default function TreasuryPage() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const chainId = useChainId();
   const sluice = useSluiceAddress();
   const usdc = useUsdcAddress();
@@ -99,13 +99,14 @@ export default function TreasuryPage() {
           { ...treasuryContract, functionName: "yieldEarned" },
           { ...treasuryContract, functionName: "idle" },
           { ...treasuryContract, functionName: "adaptersInfo" },
+          { ...treasuryContract, functionName: "deployer" },
         ]
       : [],
     allowFailure: true,
     query: { enabled: Boolean(sluice && usdc && TREASURY_ADDRESS), refetchInterval: 4_000 },
   });
 
-  const [sweepable, liability, sluiceHeld, nav, principal, yieldEarned, idle, adaptersInfo] = (
+  const [sweepable, liability, sluiceHeld, nav, principal, yieldEarned, idle, adaptersInfo, deployer] = (
     data ?? []
   ).map((entry) => (entry?.status === "success" ? entry.result : undefined));
 
@@ -229,6 +230,49 @@ export default function TreasuryPage() {
             50/50 between the Arc reserve vault and the Base Sepolia vault (burned across real CCTP v2) · any
             withdrawal that outruns the buffer auto-recalls liquidity; remote funds come home with
             their yield through a hooked CCTP return.
+          </p>
+        </Card>
+
+        <Card>
+          <CardTitle hint="the float: NAV above swept principal, principal never touched">
+            Protocol revenue
+          </CardTitle>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-zinc-500">
+                Claimable yield
+              </div>
+              <div className="font-mono text-2xl font-semibold tabular-nums text-emerald-300">
+                {yieldEarned !== undefined ? `$${formatUsdcExact(yieldEarned as bigint)}` : "-"}
+                <span className="ml-1 text-xs font-normal text-zinc-500">USDC</span>
+              </div>
+            </div>
+            <Button
+              disabled={
+                busy ||
+                !address ||
+                !deployer ||
+                address.toLowerCase() !== (deployer as string).toLowerCase() ||
+                !yieldEarned ||
+                (yieldEarned as bigint) === 0n
+              }
+              onClick={() =>
+                void send({
+                  to: treasuryContract,
+                  functionName: "claimYield",
+                  args: [address],
+                  label: `Claimed ${formatUsdcExact((yieldEarned as bigint) ?? 0n)} USDC of protocol revenue to ${shortAddr(address!)}`,
+                })
+              }
+            >
+              Claim revenue
+            </Button>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+            Marketplace fees pay out at purchase; float yield accrues here and is
+            claimable by the deployer
+            {deployer ? <span className="font-mono"> ({shortAddr(deployer as `0x${string}`)})</span> : null}.
+            The figure is a public read - anyone can audit it.
           </p>
         </Card>
 
