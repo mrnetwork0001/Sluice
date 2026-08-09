@@ -162,7 +162,27 @@ events, all automated."
 
 ---
 
-## Slide 10 — Built on the Circle stack
+## Slide 10 — Business model: revenue is the float
+
+**On slide**
+
+> ## Free for payroll. Revenue is the float.
+> - **Zero fees** on streams, withdrawals, advances — adoption first
+> - **Float yield** — idle escrow auto-routes to yield venues; NAV above
+>   principal is protocol revenue (`SluiceTreasury.claimYield`)
+> - **0.5% marketplace take** at the factoring windfall moment (`MARKET_FEE_BPS = 50`)
+> - Insurance premiums accrue to **stakers** — underwriting capital earns, not us
+
+**Notes**: "The same model payroll processors have run for decades — ADP earns
+the float on pre-funded payroll, Circle earns the float on reserves. Ours is
+just auditable: both revenue lines are public contract reads, shown live on the
+landing page. And the fee sits on the windfall, never the paycheck: a seller
+taking 95 cents on the dollar for instant cash doesn't notice 50bps; an
+employee never pays anything."
+
+---
+
+## Slide 11 — Built on the Circle stack
 
 **On slide**
 
@@ -182,7 +202,7 @@ as a checkbox."
 
 ---
 
-## Slide 11 — Status: it works today
+## Slide 12 — Status: it works today
 
 **On slide**
 
@@ -200,7 +220,7 @@ command."
 
 ---
 
-## Slide 12 — Roadmap & ask
+## Slide 13 — Roadmap & ask
 
 **On slide**
 

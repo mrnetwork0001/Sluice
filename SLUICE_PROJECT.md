@@ -41,8 +41,12 @@ their future stream receivables at a discount for instant liquidity.
 - `withdrawFromStream(uint256 streamId, uint256 amount)` — applies the tax split
 - `listStreamForSale(uint256 streamId, uint256 salePrice)`
 - `buyStream(uint256 streamId)` — swaps SFT owner, transfers discounted payment
+  net of the 0.5% protocol take (`MARKET_FEE_BPS`, paid to `feeRecipient`;
+  waived until `setFeeRecipient` is wired)
 - `borrowSalaryAdvance(uint256 streamId, uint256 advanceAmount)` — capped at 50% of stream value
 - `stakeInsurancePool(uint256 amount)` / `claimDefaultCoverage(uint256 streamId)`
+- `SluiceTreasury.claimYield(address to)` — deployer-only; pays out NAV above
+  swept principal (protocol revenue from float yield)
 
 USDC has **6 decimals** — all rate math is per-second with 6-decimal precision.
 
@@ -113,7 +117,7 @@ Sluice/
 - ✅ UI: Treasury page (NAV, per-venue positions with chain badges, sweep /
   rebalance / recall, on-chain activity feed), fund-from select on Create,
   payout-destination select on Withdraw, "Buy from Base via CCTP" on listings.
-- ✅ 44 forge tests total; every flow driven in the browser against live testnets.
+- ✅ 50 forge tests total; every flow driven in the browser against live testnets.
 - Address JSONs live at `web/src/lib/deployments.<chainId>.json` and are what the
   app loads. NOTE: `script/Deploy.s.sol` rewrites the Arc JSON with only the
   `sluice` key — re-run `DeployCrossChain` + `AddEarnAdapter` after any redeploy.
@@ -130,7 +134,11 @@ Sluice/
 - **Streaming math**: `ratePerSecond = amount / durationSeconds` (6-decimal USDC);
   vested = `rate * elapsed`, capped at total. Withdrawal splits `taxBps` to `taxVault`.
 - **Marketplace**: escrow-free listing — buyer pays sale price in USDC directly to
-  seller, SFT ownership transfers atomically in `buyStream`.
+  seller (net of the 0.5% take routed to `feeRecipient`), SFT ownership transfers
+  atomically in `buyStream`.
+- **Revenue**: free at the point of use — no fee on streams, withdrawals,
+  advances, insurance. Protocol earns the float (treasury NAV above principal,
+  `claimYield`) plus the 0.5% marketplace take (`totalMarketFees`).
 - **Advance**: max cumulative 50% of remaining stream value; repaid implicitly by
   reducing withdrawable balance.
 - **Insurance**: stakers deposit USDC into pool; insured streams (0.5% premium) can

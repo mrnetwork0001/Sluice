@@ -74,6 +74,8 @@ A vendored, minimal ERC-3525 implementation (`contracts/erc3525/`) supports:
 Employees list streams for sale at a discount (`listStreamForSale`); any liquidity
 provider buys them (`buyStream`) - payment goes straight to the seller and the SFT
 transfers atomically. Future income becomes instant liquidity, on standard rails.
+The protocol takes **0.5% of the ask** (`MARKET_FEE_BPS`) at purchase - the only
+fee anywhere in Sluice, charged at the seller's windfall moment, never on payroll.
 
 ### Self-repaying salary advances
 `borrowSalaryAdvance` lets a stream owner draw up to **50% of unwithdrawn value**
@@ -110,7 +112,17 @@ Idle escrow above a **40% liquidity buffer** sweeps into `SluiceTreasury`
 money market and a remote vault reached via hooked CCTP transfer. Withdrawals that
 outrun the buffer **auto-recall liquidity mid-transaction**; remote positions come
 home with their accrued yield through a hooked CCTP return. Full NAV accounting and
-an on-chain activity feed.
+an on-chain activity feed. NAV above swept principal is protocol revenue,
+claimable with `claimYield` - principal coverage is never touched.
+
+### Business model: free for payroll, revenue is the float
+Streams, withdrawals, advances and insurance carry **zero protocol fee**; premiums
+accrue entirely to stakers. Revenue comes from two switchable surfaces, both live
+and both readable on-chain from the landing page: **float yield** (idle escrow
+auto-routed to yield venues; `SluiceTreasury.yieldEarned()` above principal is
+claimable protocol revenue) and the **0.5% marketplace take**
+(`totalMarketFees`). The same model payroll processors have run for decades -
+earn on the pre-funded window - except auditable by anyone.
 
 ### Full product frontend
 Next.js 16 App Router app: marketing landing, live dashboard with per-second
@@ -239,7 +251,7 @@ destination chain — the stream will not appear.
 ## Testing
 
 ```bash
-forge test          # 44 tests
+forge test          # 50 tests
 forge test -vvv     # verbose traces
 ```
 
@@ -260,12 +272,12 @@ insurance pool all run against native USDC:
 
 | | |
 |---|---|
-| **Sluice (core payroll)** | [`0xc0aD99f53A49DB154098717Dbdd0B16c73B2f32D`](https://testnet.arcscan.app/address/0xc0aD99f53A49DB154098717Dbdd0B16c73B2f32D) |
-| **SluiceGate (CCTP entry/exit)** | [`0x4B5fB3206bf6B4c69D9081c7D35187A0E0cc55E8`](https://testnet.arcscan.app/address/0x4B5fB3206bf6B4c69D9081c7D35187A0E0cc55E8) |
-| **SluiceTreasury (auto-yield)** | [`0x5d5fa6CD2FBde91B2F9045450F43065C4E9cD691`](https://testnet.arcscan.app/address/0x5d5fa6CD2FBde91B2F9045450F43065C4E9cD691) |
-| **Morpho USDC Vault via Circle Earn (3.5%)** | [`0xB4968f2d5dCe632f46b006f19D004D7e4Bd9BCAb`](https://testnet.arcscan.app/address/0xB4968f2d5dCe632f46b006f19D004D7e4Bd9BCAb) |
-| **CCTP Remote Adapter** | [`0x4D75134A5a34F034F913adCF3D7433fDf4345498`](https://testnet.arcscan.app/address/0x4D75134A5a34F034F913adCF3D7433fDf4345498) |
-| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0xd8067404bd10D9bDf15BfD0D771696550d05Ecd1`](https://sepolia.basescan.org/address/0xd8067404bd10D9bDf15BfD0D771696550d05Ecd1) |
+| **Sluice (core payroll)** | [`0xE4B8E984B63165846008d936e4B5D5c6D6d5BCE4`](https://testnet.arcscan.app/address/0xE4B8E984B63165846008d936e4B5D5c6D6d5BCE4) |
+| **SluiceGate (CCTP entry/exit)** | [`0xe3510af408bffbd2Cf7629CB5Fc25da745DA7671`](https://testnet.arcscan.app/address/0xe3510af408bffbd2Cf7629CB5Fc25da745DA7671) |
+| **SluiceTreasury (auto-yield)** | [`0x52fC38aDB7BC3A5DC049BD21b8838436031be4fc`](https://testnet.arcscan.app/address/0x52fC38aDB7BC3A5DC049BD21b8838436031be4fc) |
+| **Morpho USDC Vault via Circle Earn (3.5%)** | [`0x547612eb7e88577a80Ad5636EC8dF93e80EC3864`](https://testnet.arcscan.app/address/0x547612eb7e88577a80Ad5636EC8dF93e80EC3864) |
+| **CCTP Remote Adapter** | [`0xe132B4Cd7F451d3CA7a026b7b129B705a13f843D`](https://testnet.arcscan.app/address/0xe132B4Cd7F451d3CA7a026b7b129B705a13f843D) |
+| **RemoteYieldVault (Base Sepolia, 8.6%)** | [`0x95c46545a6eE4D1D604e739E227C5Db8d417AC97`](https://sepolia.basescan.org/address/0x95c46545a6eE4D1D604e739E227C5Db8d417AC97) |
 | Chain ID | `5042002` (`0x4CEF52`) |
 | RPC | `https://rpc.testnet.arc.network` |
 | Explorer | `https://testnet.arcscan.app` |
@@ -298,14 +310,34 @@ paid in real USDC from pre-funded reserves. Verified end-to-end on the live
 testnets: a 0.10 USDC withdrawal exited Arc and landed as **0.092 USDC on Base
 Sepolia** (net of 8% tax); a 2.00 USDC burn on Base Sepolia opened a salary
 stream on Arc through the gate hook; and the treasury swept escrow, split it
-across both chains, and recalled the remote position home with its yield.
+across both chains, and recalled the remote position home with its yield. The
+current deployment was exercised the same way on day one: withdrawal with an 8%
+tax split, a self-repaying advance, an insured stream, a sweep + rebalance that
+CCTP-routed half the idle escrow to Base Sepolia, and a live marketplace sale
+that paid the 0.5% protocol take (`totalMarketFees` reads `2500` on-chain).
 
 ### Redeploying
 
+The full set, in order (each script writes the address JSONs the next one and the
+frontend read). `Deploy.s.sol` also wires `setFeeRecipient` to the deployer:
+
 ```bash
-export PRIVATE_KEY=0x...   # funded with Arc testnet USDC
+export PRIVATE_KEY=0x...   # funded with Arc testnet USDC + Base Sepolia ETH
 forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
+SLUICE=0x... FROM_BLOCK=... \
+  forge script script/DeployCrossChain.s.sol --rpc-url arc_testnet --broadcast
+ARC_TREASURY=0x... \
+  forge script script/DeployBaseVault.s.sol --rpc-url https://sepolia.base.org --broadcast
+SLUICE=0x... TREASURY=0x... REMOTE_VAULT=0x... GATE=0x... LOCAL_ADAPTER=0x... \
+  FROM_BLOCK=... TREASURY_FROM_BLOCK=... \
+  forge script script/AddRemoteAdapter.s.sol --rpc-url arc_testnet --broadcast
 ```
+
+> **Seeding caveat:** `script/SeedArc.s.sol` fails in Foundry's local simulation —
+> Arc's USDC calls a blocklist precompile (`0x1800…0001`) the local EVM cannot
+> execute, and `--skip-simulation` does not bypass script-phase execution. Seed
+> with direct transactions instead (`cast send` of `approve`, `createStream`,
+> `stakeInsurancePool`), which never touch a local EVM.
 
 **Re-verify after every deploy.** Verification is not automatic, and an
 unverified contract is unreadable to anyone evaluating this. One command
@@ -325,10 +357,19 @@ run any time, and should be run immediately after any redeploy.
 > cross-chain feature. Re-run `script/DeployCrossChain.s.sol` and
 > `script/AddEarnAdapter.s.sol` afterwards, or restore the other keys by hand.
 
-If contracts changed, regenerate the typed ABI:
+If contracts changed, regenerate the typed ABIs (keep the whole expression on one
+line — the Next.js SWC parser rejects a line-broken `] as const`):
 
 ```bash
-echo "export const sluiceAbi = $(forge inspect Sluice abi --json) as const;" > web/src/lib/sluiceAbi.ts
+python3 - <<'EOF'
+import json, subprocess
+for target, name, out in [
+    ("contracts/Sluice.sol:Sluice", "sluiceAbi", "web/src/lib/sluiceAbi.ts"),
+    ("contracts/crosschain/SluiceTreasury.sol:SluiceTreasury", "treasuryAbi", "web/src/lib/treasuryAbi.ts"),
+]:
+    abi = json.loads(subprocess.check_output(["forge", "inspect", target, "abi", "--json"]))
+    open(out, "w").write(f"export const {name} = {json.dumps(abi, indent=2)} as const;\n")
+EOF
 ```
 
 ## Repository Layout
@@ -338,7 +379,7 @@ contracts/                    Sluice.sol · vendored ERC-3525
 contracts/crosschain/         SluiceGate · SluiceTreasury · ERC4626Adapter
                               YieldAdapters · RemoteYieldVault · CCTPInterfaces
 contracts/mocks/              MockUSDC · MockERC4626  (test fixtures only)
-test/                         Sluice.t.sol · CrossChain.t.sol   (44 tests)
+test/                         Sluice.t.sol · CrossChain.t.sol   (50 tests)
 script/                       Deploy · DeployCrossChain · AddEarnAdapter
                               AddRemoteAdapter · DeployBaseVault
 web/                          Next.js 16 app — wagmi v3 / viem / Tailwind v4
@@ -356,7 +397,7 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 | Cross-chain | **Circle CCTP v2** — canonical `TokenMessengerV2` + hooks, Iris attestation, local delivery relayer |
 | Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding), Morpho USDC vault via ERC-4626 (the vault Circle Earn surfaces on Arc) |
 | Frontend | Next.js 16 (App Router), wagmi v3, viem, TanStack Query, Tailwind v4 |
-| Quality | 44 Foundry tests, GitHub Actions CI (fmt + build + test), manual end-to-end verification on live Arc + Base Sepolia |
+| Quality | 50 Foundry tests, GitHub Actions CI (fmt + build + test), manual end-to-end verification on live Arc + Base Sepolia |
 
 ## Roadmap & Planned Integrations
 
@@ -414,7 +455,7 @@ This is **hackathon software** - unaudited, and not production-ready:
   `contracts/mocks/` purely as Foundry test fixtures and are not deployed.
 - `RemoteYieldVault` and the `ReserveYieldAdapter` model yield from pre-funded
   reserves rather than a real venue; the Arc-side `ERC4626Adapter` is real.
-- `setGate` / `setTreasury` are one-time, first-caller-wins wiring with **no
+- `setGate` / `setTreasury` / `setFeeRecipient` are one-time, first-caller-wins wiring with **no
   ownership check**. The live instance is already wired, but any fresh deployment
   must be wired in the same transaction batch or an attacker can claim the gate —
   which is privileged (`withdrawFromStreamFor`). Production needs an owner,
