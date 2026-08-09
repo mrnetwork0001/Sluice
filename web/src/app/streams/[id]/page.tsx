@@ -299,7 +299,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
               // withdrawToChain convenience overload, which left-pads for us.
               const common = {
                 to: { address: GATE_ADDRESS, abi: gateAbi },
-                label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net exiting to ${domainLabel(dest)} via CCTP`,
+                label: `Withdrew ${formatUsdc(parsed)} USDC - ${formatUsdc(net)} net (after tax) arrives on ${domainLabel(dest)} in ~20s. The signature is on Arc by design; switch your wallet to ${domainLabel(dest)} to see the balance.`,
                 onSuccess: () => setAmount(""),
               };
               if (toSolana) {
