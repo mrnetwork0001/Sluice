@@ -290,10 +290,25 @@ async function processMessage(id, msg) {
     const attested = await fetchAttestation(src.domain, msg.txHash);
     if (!attested) return; // not attested yet — not a failure, no attempt burned
     try {
-      const hash = await dst.wallet.writeContract({
-        address: MESSAGE_TRANSMITTER, abi: transmitterAbi, functionName: "receiveMessage",
-        args: [attested.message, attested.attestation],
-      });
+      let hash;
+      try {
+        hash = await dst.wallet.writeContract({
+          address: MESSAGE_TRANSMITTER, abi: transmitterAbi, functionName: "receiveMessage",
+          args: [attested.message, attested.attestation],
+        });
+      } catch (error) {
+        // Some public RPCs (Fuji's load balancer notably) fail gas ESTIMATION
+        // with "state not available for pending block" / "missing or invalid
+        // parameters" even though the transaction itself is fine. Retry once
+        // with an explicit limit - receiveMessage + mint fits comfortably.
+        const text = String(error?.shortMessage ?? error?.message ?? error);
+        if (!/state not available|missing or invalid parameters|estimate/i.test(text)) throw error;
+        hash = await dst.wallet.writeContract({
+          address: MESSAGE_TRANSMITTER, abi: transmitterAbi, functionName: "receiveMessage",
+          args: [attested.message, attested.attestation],
+          gas: 400_000n,
+        });
+      }
       const receipt = await dst.pub.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error(`receiveMessage reverted (${hash})`);
       let minted = 0n;
