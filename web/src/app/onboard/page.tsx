@@ -209,9 +209,13 @@ export default function OnboardPage() {
   };
 
   useEffect(() => {
-    if (!userId) return;
+    // Resume-by-userId exists for PIN users returning to the page. An email
+    // sign-in already holds a live session, and email-keyed users cannot mint
+    // sessions by userId (Circle rejects with "API parameter invalid") - so
+    // never refresh over an existing session.
+    if (!userId || session) return;
     refresh(userId).catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, [userId]);
+  }, [userId, session]);
 
   /** Poll until Circle reports the provisioned wallet, or we give up. */
   const waitForWallet = async (userToken: string): Promise<CircleWallet[]> => {
@@ -234,16 +238,22 @@ export default function OnboardPage() {
     setBusy(true);
     setError(undefined);
     try {
-      setStatus("Creating your Circle account…");
-      // Resume the saved user rather than minting a new one. Creating a fresh
-      // user on every attempt strands the wallet made by the previous attempt.
-      const saved = window.localStorage.getItem(STORAGE_KEY) ?? undefined;
-      const created = await api<{ userId: string }>("createUser", saved ? { userId: saved } : {});
-      window.localStorage.setItem(STORAGE_KEY, created.userId);
-      setUserId(created.userId);
+      // A live session (from an email sign-in) is reused as-is: email-keyed
+      // users cannot open sessions by userId, and the wallet challenge works
+      // with any valid session token.
+      let fresh = session;
+      if (!fresh) {
+        setStatus("Creating your Circle account…");
+        // Resume the saved user rather than minting a new one. Creating a fresh
+        // user on every attempt strands the wallet made by the previous attempt.
+        const saved = window.localStorage.getItem(STORAGE_KEY) ?? undefined;
+        const created = await api<{ userId: string }>("createUser", saved ? { userId: saved } : {});
+        window.localStorage.setItem(STORAGE_KEY, created.userId);
+        setUserId(created.userId);
 
-      setStatus("Opening a secure session…");
-      const fresh = await refresh(created.userId);
+        setStatus("Opening a secure session…");
+        fresh = await refresh(created.userId);
+      }
 
       setStatus("Preparing your wallet on Arc…");
       const { challengeId } = await api<{ challengeId: string }>("initialize", {
