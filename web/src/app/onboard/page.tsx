@@ -214,7 +214,19 @@ export default function OnboardPage() {
     // sessions by userId (Circle rejects with "API parameter invalid") - so
     // never refresh over an existing session.
     if (!userId || session) return;
-    refresh(userId).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    refresh(userId).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/parameter invalid/i.test(message)) {
+        // Self-heal: an email user's id was persisted here by an older build.
+        // It can never open a session by userId - drop it and point the user
+        // back at email sign-in instead of splashing a Circle error.
+        window.localStorage.removeItem(STORAGE_KEY);
+        setUserId(undefined);
+        setStatus("Sign in with your email below to reach your wallet.");
+        return;
+      }
+      setError(message);
+    });
   }, [userId, session]);
 
   /** Poll until Circle reports the provisioned wallet, or we give up. */
@@ -352,10 +364,10 @@ export default function OnboardPage() {
 
       setSession(login);
       const who = await api<{ userId?: string }>("userByToken", { userToken: login.userToken });
-      if (who.userId) {
-        window.localStorage.setItem(STORAGE_KEY, who.userId);
-        setUserId(who.userId);
-      }
+      // Shown, but never persisted: email-keyed users cannot be resumed by
+      // userId (Circle rejects createUserToken for them) - their way back in
+      // is signing in with the email again, on any device.
+      if (who.userId) setUserId(who.userId);
       setStatus("Signed in - loading your wallet…");
       const found = await waitForWallet(login.userToken);
       setStatus(
