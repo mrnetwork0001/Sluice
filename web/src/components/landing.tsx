@@ -432,6 +432,19 @@ function LiveLedger() {
             </tbody>
           </table>
         </div>
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--hairline)] px-4 py-2.5">
+          <span className="font-mono text-[11px] text-zinc-500">
+            {refs && refs.length > ids.length
+              ? `showing the ${ids.length} newest of ${refs.length} streams`
+              : `${ids.length} streams · every row checkable on-chain`}
+          </span>
+          <Link
+            href="/dashboard"
+            className="font-mono text-[11px] text-zinc-500 transition-colors hover:text-cyan-300"
+          >
+            open the app →
+          </Link>
+        </div>
       </div>
     </Reveal>
   );
