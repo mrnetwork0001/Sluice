@@ -107,7 +107,11 @@ async function ensureLookupTable(ctx, keys) {
       return (await connection.getAddressLookupTable(tableAddress)).value;
     }
   }
-  const slot = await connection.getSlot("confirmed");
+  // A "confirmed" slot can be ahead of the (load-balanced) node that simulates
+  // the transaction, which rejects it as "not a recent slot". A finalized slot
+  // is ~32 slots back - comfortably inside the 512-slot recency window and
+  // known to every node.
+  const slot = await connection.getSlot("finalized");
   const [createIx, newAddress] = AddressLookupTableProgram.createLookupTable({
     authority: keypair.publicKey,
     payer: keypair.publicKey,
