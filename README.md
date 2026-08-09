@@ -21,7 +21,7 @@ and idle escrow earns yield across chains.**
 - [Live Features](#live-features)
 - [Architecture](#architecture)
 - [How the Core Flows Work](#how-the-core-flows-work)
-- [Quick Start - Local Demo](#quick-start--local-demo)
+- [Quick Start](#quick-start)
 - [Testing](#testing)
 - [Live on Arc Testnet](#live-on-arc-testnet)
 - [Repository Layout](#repository-layout)
@@ -161,21 +161,24 @@ flowchart LR
     MA -.-> RV
 ```
 
-**10 contracts in source; 6 deployed live** (4 are test fixtures or a shared base).
-Every deployed contract is source-verified on its explorer.
+**Six contracts deployed live — every one source-verified on its explorer**, all
+running against native Arc USDC and Circle's canonical CCTP v2:
 
-| Contract | Purpose | Deployed |
+| Contract | Purpose | Live on |
 |---|---|---|
-| [`Sluice.sol`](contracts/Sluice.sol) | Core payroll: ERC-3525 streams, vesting, tax splits, marketplace, advances, insurance pool, escrow-liability accounting | Arc ✅ |
-| [`erc3525/ERC3525.sol`](contracts/erc3525/ERC3525.sol) | Vendored minimal ERC-3525 with value-transfer hook | base of Sluice |
-| [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver - cross-chain funding, buyouts, withdrawal exits | Arc ✅ |
-| [`crosschain/SluiceTreasury.sol`](contracts/crosschain/SluiceTreasury.sol) | Idle-escrow yield router: sweep / rebalance / recall, NAV, adapter registry | Arc ✅ |
-| [`crosschain/ERC4626Adapter.sol`](contracts/crosschain/ERC4626Adapter.sol) | Real ERC-4626 adapter - deposits idle escrow into the Morpho USDC vault on Arc | Arc ✅ |
-| [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | `CCTPRemoteAdapter` (deployed) routes escrow to the remote vault; `ReserveYieldAdapter` is a simulated-APY adapter used in tests | Arc ✅ |
-| [`crosschain/RemoteYieldVault.sol`](contracts/crosschain/RemoteYieldVault.sol) | Destination-chain vault; accrues APY, exits home with yield | Base Sepolia ✅ |
-| [`crosschain/CCTPInterfaces.sol`](contracts/crosschain/CCTPInterfaces.sol) | Canonical `TokenMessengerV2` / `MessageTransmitterV2` interfaces | interfaces only |
-| [`mocks/MockUSDC.sol`](contracts/mocks/MockUSDC.sol) | 6-decimal USDC stand-in | tests only |
-| [`mocks/MockERC4626.sol`](contracts/mocks/MockERC4626.sol) | ERC-4626 vault stand-in for adapter tests | tests only |
+| [`Sluice.sol`](contracts/Sluice.sol) | Core payroll: ERC-3525 streams, vesting, tax splits, marketplace (0.5% take), advances, insurance pool, escrow-liability accounting | [Arc ✅](https://testnet.arcscan.app/address/0xE4B8E984B63165846008d936e4B5D5c6D6d5BCE4) |
+| [`crosschain/SluiceGate.sol`](contracts/crosschain/SluiceGate.sol) | CCTP hook receiver - cross-chain funding, buyouts, withdrawal exits | [Arc ✅](https://testnet.arcscan.app/address/0xe3510af408bffbd2Cf7629CB5Fc25da745DA7671) |
+| [`crosschain/SluiceTreasury.sol`](contracts/crosschain/SluiceTreasury.sol) | Idle-escrow yield router: sweep / rebalance / recall, NAV, `claimYield` revenue | [Arc ✅](https://testnet.arcscan.app/address/0x52fC38aDB7BC3A5DC049BD21b8838436031be4fc) |
+| [`crosschain/ERC4626Adapter.sol`](contracts/crosschain/ERC4626Adapter.sol) | Real ERC-4626 adapter - deposits idle escrow into the Morpho USDC vault on Arc | [Arc ✅](https://testnet.arcscan.app/address/0x547612eb7e88577a80Ad5636EC8dF93e80EC3864) |
+| [`crosschain/YieldAdapters.sol`](contracts/crosschain/YieldAdapters.sol) | `CCTPRemoteAdapter` - routes escrow to the remote vault via hooked CCTP burns | [Arc ✅](https://testnet.arcscan.app/address/0xe132B4Cd7F451d3CA7a026b7b129B705a13f843D) |
+| [`crosschain/RemoteYieldVault.sol`](contracts/crosschain/RemoteYieldVault.sol) | Destination-chain vault; accrues APY, exits home with yield | [Base Sepolia ✅](https://sepolia.basescan.org/address/0x95c46545a6eE4D1D604e739E227C5Db8d417AC97) |
+
+Also in source but never deployed: the vendored ERC-3525 base
+([`erc3525/`](contracts/erc3525/)), the canonical CCTP v2 interfaces
+([`CCTPInterfaces.sol`](contracts/crosschain/CCTPInterfaces.sol)), and Foundry
+test fixtures ([`mocks/`](contracts/mocks/), plus `ReserveYieldAdapter`) that
+exist only so the 50-test suite can run without live chains - nothing mocked
+ships in the deployment above.
 
 > **No mock messenger.** Cross-chain transfers go through Circle's canonical
 > `TokenMessengerV2` and are attested by Circle's Iris API; the local
