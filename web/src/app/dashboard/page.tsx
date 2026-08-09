@@ -8,6 +8,7 @@ import { formatUsdc } from "@/lib/format";
 import { arcTestnet } from "@/lib/arc";
 import { StreamCard } from "@/components/stream-card";
 import { ConnectButton } from "@/components/connect-button";
+import { ProtocolActivity, TaxExportButton } from "@/components/protocol-activity";
 import { Card, EmptyState, PageHeader, Stat } from "@/components/ui";
 
 export default function DashboardPage() {
@@ -130,6 +131,14 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mt-10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-zinc-100">Protocol activity</h2>
+          <TaxExportButton />
+        </div>
+        <ProtocolActivity />
       </section>
     </div>
   );
