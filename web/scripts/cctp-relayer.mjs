@@ -23,6 +23,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const env = Object.fromEntries(
   readFileSync(join(root, ".env"), "utf8").trim().split("\n").map((line) => line.split("=")),
 );
+// solana-delivery.mjs reads process.env; propagate the .env value so the leg
+// works however the relayer is launched (pm2, systemd, bare node).
+if (env.SOLANA_PRIVATE_KEY && !process.env.SOLANA_PRIVATE_KEY) {
+  process.env.SOLANA_PRIVATE_KEY = env.SOLANA_PRIVATE_KEY;
+}
 const depArc = JSON.parse(readFileSync(join(root, "web/src/lib/deployments.5042002.json")));
 const depBase = JSON.parse(readFileSync(join(root, "web/src/lib/deployments.84532.json")));
 
