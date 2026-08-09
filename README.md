@@ -456,6 +456,9 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 - [x] **Solana Devnet payouts** — `withdrawToDomain` burns to the recipient's
       USDC token account; the relayer mints via the CCTP Solana programs with a
       v0 transaction + lookup table. Proven live, twice.
+- [ ] **Solana funding** — the same `FUND_STREAM` hook with a Solana signer:
+      the CCTP Solana program already supports `deposit_for_burn_with_hook`,
+      so opening a stream from a Solana wallet is wallet UX, not new protocol work
 - [x] Hosted relayer — runs as a pm2 app on a VPS; no local process needed
 
 **Phase 3 - Deeper DeFi**
