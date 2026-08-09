@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { arcTestnet } from "@/lib/arc";
 import { CHAIN_LABELS } from "@/lib/wagmi";
-import { useUsdcBalance } from "@/lib/hooks";
+import { useStreamIds, useUsdcBalance } from "@/lib/hooks";
 import { explorerAddressUrl } from "@/lib/explorer";
 import { formatUsdc, shortAddr } from "@/lib/format";
 
@@ -222,6 +222,18 @@ export function SidebarContent({
   useEffect(() => {
     if (window.localStorage.getItem(ROLE_STORAGE_KEY) === "employee") setRole("employee");
   }, []);
+  // Smart default: a wallet that receives streams but has never created one is
+  // an employee. Only applies while the user has never chosen explicitly, and
+  // never writes storage - an ephemeral guess, not a decision.
+  const { address } = useAccount();
+  const { data: streamRefs } = useStreamIds();
+  useEffect(() => {
+    if (!address || !streamRefs || window.localStorage.getItem(ROLE_STORAGE_KEY)) return;
+    const me = address.toLowerCase();
+    const receives = streamRefs.some((ref) => ref.recipient.toLowerCase() === me);
+    const employs = streamRefs.some((ref) => ref.employer.toLowerCase() === me);
+    if (receives && !employs) setRole("employee");
+  }, [address, streamRefs]);
   const pickRole = (next: Role) => {
     setRole(next);
     window.localStorage.setItem(ROLE_STORAGE_KEY, next);
