@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { arcTestnet } from "@/lib/arc";
@@ -19,15 +20,24 @@ import { formatUsdc, shortAddr } from "@/lib/format";
  * explorer.
  */
 
+/**
+ * Role-scoped navigation. Employers see the full product; employees see the
+ * consumption side - no stream-creation surfaces, no treasury console. This is
+ * presentation only: direct URLs still work on purpose (the contracts enforce
+ * the real permissions), so hiding a tab can never lock anyone out.
+ */
+export type Role = "employer" | "employee";
+const ROLE_STORAGE_KEY = "sluice-role";
+
 export const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard", icon: GridIcon },
-  { href: "/create", label: "Create Stream", icon: PlusIcon },
-  { href: "/payroll", label: "Payroll Run", icon: UsersIcon },
-  { href: "/marketplace", label: "Marketplace", icon: TagIcon },
-  { href: "/treasury", label: "Treasury", icon: VaultIcon },
-  { href: "/automation", label: "Automation", icon: BoltIcon },
-  { href: "/onboard", label: "Get Paid", icon: WalletIcon },
-];
+  { href: "/dashboard", label: "Dashboard", icon: GridIcon, roles: ["employer", "employee"] },
+  { href: "/create", label: "Create Stream", icon: PlusIcon, roles: ["employer"] },
+  { href: "/payroll", label: "Payroll Run", icon: UsersIcon, roles: ["employer"] },
+  { href: "/marketplace", label: "Marketplace", icon: TagIcon, roles: ["employer", "employee"] },
+  { href: "/treasury", label: "Treasury", icon: VaultIcon, roles: ["employer"] },
+  { href: "/automation", label: "Automation", icon: BoltIcon, roles: ["employer", "employee"] },
+  { href: "/onboard", label: "Get Paid", icon: WalletIcon, roles: ["employee"] },
+] as const;
 
 function GridIcon({ className }: { className?: string }) {
   return (
@@ -206,6 +216,18 @@ export function SidebarContent({
   onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
+  // Default to the full (employer) view; load the saved choice after mount so
+  // the server-rendered markup never mismatches the client.
+  const [role, setRole] = useState<Role>("employer");
+  useEffect(() => {
+    if (window.localStorage.getItem(ROLE_STORAGE_KEY) === "employee") setRole("employee");
+  }, []);
+  const pickRole = (next: Role) => {
+    setRole(next);
+    window.localStorage.setItem(ROLE_STORAGE_KEY, next);
+  };
+  const links = NAV_LINKS.filter((link) => (link.roles as readonly Role[]).includes(role));
+
   return (
     <div className="flex h-full flex-col">
       <div className={`flex items-center py-4 ${collapsed ? "justify-center px-2" : "gap-2 px-5"}`}>
@@ -246,8 +268,31 @@ export function SidebarContent({
         </button>
       ) : null}
 
+      {/* Role switcher: hidden when collapsed (the filter still applies). */}
+      {!collapsed ? (
+        <div className="mb-3 px-3">
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/[0.07] bg-white/[0.02] p-1">
+            {(["employer", "employee"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => pickRole(option)}
+                aria-pressed={role === option}
+                className={`rounded-md px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  role === option
+                    ? "bg-white/[0.08] text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <nav className={`space-y-1 ${collapsed ? "px-2" : "px-3"}`}>
-        {NAV_LINKS.map((link) => {
+        {links.map((link) => {
           const active = pathname.startsWith(link.href);
           const Icon = link.icon;
           return (
