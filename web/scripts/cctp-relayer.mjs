@@ -222,7 +222,7 @@ async function discoverBurns(src) {
           attempts: 0,
           note: "",
         };
-        log(`queued ${id.slice(0, 40)}… ${fmt(burn.amount)} → ${dst.chain.name} (${recipient.slice(0, 10)}…)`);
+        log(`queued ${id.slice(0, 40)}… ${fmt(burn.amount)} → ${dst.chain?.name ?? "Solana Devnet"} (${recipient.slice(0, 10)}…)`);
       }
     }
     state.lastBlock[cursorKey] = String(to); // always advances — queue holds the work

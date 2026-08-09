@@ -22,13 +22,20 @@
  */
 
 import { createRequire } from "node:module";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import * as anchor from "@coral-xyz/anchor";
 import {
+  AddressLookupTableProgram,
   ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
   SystemProgram,
+  Transaction,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -49,6 +56,74 @@ const SOLANA_USDC = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 const ARC_USDC_BYTES32 = "0x0000000000000000000000003600000000000000000000000000000000000000";
 
 const hexToBuffer = (hex) => Buffer.from(hex.replace(/^0x/, ""), "hex");
+
+const ALT_FILE = join(dirname(fileURLToPath(import.meta.url)), ".solana-alt.json");
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function sendLegacy(ctx, instructions) {
+  const { connection, keypair } = ctx;
+  const tx = new Transaction().add(...instructions);
+  tx.feePayer = keypair.publicKey;
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.sign(keypair);
+  const signature = await connection.sendRawTransaction(tx.serialize());
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+  return signature;
+}
+
+/**
+ * The delivery transaction cannot fit a legacy packet: CCTP's message +
+ * attestation + ~16 account keys is ~1264 bytes against Solana's 1232 limit.
+ * A v0 transaction with an address lookup table moves every static key out of
+ * the packet (32 bytes -> 1 byte each). The table is created once, extended
+ * when a key is missing (the fee recipient rotates), persisted by address next
+ * to the relayer state, and reused for every delivery after that.
+ */
+async function ensureLookupTable(ctx, keys) {
+  const { connection, keypair } = ctx;
+  let tableAddress;
+  if (existsSync(ALT_FILE)) {
+    try {
+      tableAddress = new PublicKey(JSON.parse(readFileSync(ALT_FILE, "utf8")).address);
+    } catch {
+      tableAddress = undefined; // unreadable file -> recreate below
+    }
+  }
+  if (tableAddress) {
+    const table = (await connection.getAddressLookupTable(tableAddress)).value;
+    if (table) {
+      const missing = keys.filter((key) => !table.state.addresses.some((a) => a.equals(key)));
+      if (missing.length === 0) return table;
+      await sendLegacy(ctx, [
+        AddressLookupTableProgram.extendLookupTable({
+          payer: keypair.publicKey,
+          authority: keypair.publicKey,
+          lookupTable: tableAddress,
+          addresses: missing,
+        }),
+      ]);
+      await sleep(1_500); // extended addresses activate one slot later
+      return (await connection.getAddressLookupTable(tableAddress)).value;
+    }
+  }
+  const slot = await connection.getSlot("confirmed");
+  const [createIx, newAddress] = AddressLookupTableProgram.createLookupTable({
+    authority: keypair.publicKey,
+    payer: keypair.publicKey,
+    recentSlot: slot,
+  });
+  const extendIx = AddressLookupTableProgram.extendLookupTable({
+    payer: keypair.publicKey,
+    authority: keypair.publicKey,
+    lookupTable: newAddress,
+    addresses: keys,
+  });
+  await sendLegacy(ctx, [createIx, extendIx]);
+  writeFileSync(ALT_FILE, JSON.stringify({ address: newAddress.toBase58() }));
+  await sleep(1_500);
+  return (await connection.getAddressLookupTable(newAddress)).value;
+}
 
 function pda(label, programId, extras = []) {
   const seeds = [Buffer.from(label)];
@@ -177,7 +252,7 @@ export async function deliverToSolana(ctx, attested, ownerHint) {
   ];
 
   // Anchor's generated types diverge from .methods at runtime; Circle casts here too.
-  const signature = await messageTransmitter.methods
+  const receiveIx = await messageTransmitter.methods
     .receiveMessage({ message, attestation: hexToBuffer(attested.attestation) })
     .accounts({
       payer: keypair.publicKey,
@@ -191,8 +266,39 @@ export async function deliverToSolana(ctx, attested, ownerHint) {
       program: mtProgram,
     })
     .remainingAccounts(remainingAccounts)
-    .preInstructions(preInstructions)
-    .rpc();
+    .instruction();
+
+  // Every static account lives in the lookup table; only the signer and the
+  // per-message accounts (used_nonce, recipient ATA) stay inline.
+  const lookupTable = await ensureLookupTable(ctx, [
+    mtProgram,
+    tmmProgram,
+    ComputeBudgetProgram.programId,
+    SystemProgram.programId,
+    TOKEN_PROGRAM_ID,
+    messageTransmitterAccount,
+    authorityPda,
+    mtEventAuthority,
+    tmmEventAuthority,
+    tokenMessengerAccount,
+    tokenMinterAccount,
+    localToken,
+    custodyTokenAccount,
+    remoteTokenMessenger,
+    tokenPair,
+    feeRecipientTokenAccount,
+  ]);
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  const v0Message = new TransactionMessage({
+    payerKey: keypair.publicKey,
+    recentBlockhash: blockhash,
+    instructions: [...preInstructions, receiveIx],
+  }).compileToV0Message(lookupTable ? [lookupTable] : []);
+  const tx = new VersionedTransaction(v0Message);
+  tx.sign([keypair]);
+  const signature = await connection.sendTransaction(tx);
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
 
   return { signature, mintRecipient: mintRecipient.toBase58() };
 }

@@ -30,3 +30,5 @@ web/scripts/.cctp-relayer-state.json
 # Upstream OSS contribution scratch work — kept local, never pushed with Sluice
 circle-oss-contributions/
 *.local-notes.md
+web/scripts/.solana-alt.json
+web/scripts/.cctp-relayer-state.old-*.json
