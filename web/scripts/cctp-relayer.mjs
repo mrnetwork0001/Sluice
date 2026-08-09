@@ -348,11 +348,24 @@ async function discoverReturnRequests() {
   let from = state.lastBlock[cursorKey] ? BigInt(state.lastBlock[cursorKey]) + 1n : latest - 500n;
   if (from < 0n) from = 0n;
   while (from <= latest) {
-    const to = from + 9_998n > latest ? latest : from + 9_998n;
-    const logs = await arc.pub.getContractEvents({
-      address: depArc.treasury, abi: treasuryEvents, eventName: "RemoteReturnRequested",
-      fromBlock: from, toBlock: to,
-    });
+    let span = 9_998n;
+    let to = from + span > latest ? latest : from + span;
+    let logs;
+    // Same adaptive halving as burn discovery: the Arc RPC rejects ranges by
+    // block count or result size, and a rejected range must not wedge the cursor.
+    for (;;) {
+      try {
+        logs = await arc.pub.getContractEvents({
+          address: depArc.treasury, abi: treasuryEvents, eventName: "RemoteReturnRequested",
+          fromBlock: from, toBlock: to,
+        });
+        break;
+      } catch (error) {
+        if (span <= 25n) throw error;
+        span /= 2n;
+        to = from + span > latest ? latest : from + span;
+      }
+    }
     for (const eventLog of logs) {
       const id = `ret:${eventLog.transactionHash}:${eventLog.logIndex}`;
       if (!state.returns[id]) {
@@ -407,18 +420,30 @@ let busy = false;
 setInterval(async () => {
   if (busy) return;
   busy = true;
+  // Each step is isolated: one flaky RPC must not abort discovery on the other
+  // chains or - worse - the delivery of already-queued messages.
+  const step = async (label, fn) => {
+    try {
+      await fn();
+    } catch (error) {
+      log(`${label} error: ${error?.shortMessage ?? error?.message ?? error}`);
+    }
+  };
   try {
-    await discoverBurns(sides.arc);
-    await discoverBurns(sides.base);
-    await discoverReturnRequests();
+    // Every EVM side is a funding source: remote chains carry no Sluice
+    // contracts, but fund-from-anywhere burns TO our hook receivers originate
+    // there, so all of them get scanned - not just Arc and Base.
+    for (const side of Object.values(sides)) {
+      if (side.solana) continue;
+      await step(`discover ${side.key}`, () => discoverBurns(side));
+    }
+    await step("returns", discoverReturnRequests);
     for (const [id, msg] of Object.entries(state.messages)) {
       if (msg.status === "done" || msg.status === "poison") continue;
-      await processMessage(id, msg);
+      await step(`deliver ${id.slice(0, 28)}…`, () => processMessage(id, msg));
     }
-    await processReturns();
+    await step("exits", processReturns);
     saveState();
-  } catch (error) {
-    log(`poll error: ${error?.shortMessage ?? error?.message ?? error}`);
   } finally {
     busy = false;
   }
