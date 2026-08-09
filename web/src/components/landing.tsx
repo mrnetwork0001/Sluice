@@ -451,7 +451,6 @@ export function Landing() {
   const metricCalls = [
     "totalEscrowed",
     "totalSettled",
-    "totalStreams",
     "totalMarketFees",
   ];
   const { data: metrics } = useReadContracts({
@@ -486,15 +485,23 @@ export function Landing() {
   };
   const escrowed = readMetric(0);
   const settled = readMetric(1);
-  const streamCount = readMetric(2);
-  const marketFees = readMetric(3);
-  const yieldEarned = readMetric(4);
+  const marketFees = readMetric(2);
+  const yieldEarned = readMetric(3);
   // Protocol revenue = marketplace take + treasury float yield. Rendered with
   // formatUsdcExact: early figures are sub-cent and must not display as 0.00.
   const revenue =
     marketFees !== undefined || yieldEarned !== undefined
       ? (marketFees ?? 0n) + (yieldEarned ?? 0n)
       : undefined;
+  // Unique participants: every employer plus every current stream owner.
+  const users = streamRefs
+    ? new Set(
+        streamRefs.flatMap((ref) => [
+          ref.employer.toLowerCase(),
+          ref.recipient.toLowerCase(),
+        ]),
+      ).size
+    : undefined;
 
   return (
     <div className="pb-10">
@@ -563,36 +570,34 @@ export function Landing() {
       <section className="grid gap-6 border-y border-white/[0.06] py-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-cyan-300">
-            {escrowed !== undefined ? formatUsdc(escrowed) : "-"}
+            {escrowed !== undefined ? `$${formatUsdc(escrowed)}` : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            USDC streamed through Sluice
+            USDC streamed
           </div>
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-emerald-300">
-            {settled !== undefined ? formatUsdc(settled) : "-"}
+            {settled !== undefined ? `$${formatUsdc(settled)}` : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            USDC settled to workers
+            USDC settled
           </div>
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-zinc-50">
-            {streamCount !== undefined
-              ? streamCount.toString()
-              : (streamRefs?.length ?? "-")}
+            {users ?? "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            salary streams opened
+            Users
           </div>
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-amber-300">
-            {revenue !== undefined ? formatUsdcExact(revenue) : "-"}
+            {revenue !== undefined ? `$${formatUsdcExact(revenue)}` : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            USDC protocol revenue earned
+            Revenue earned
           </div>
         </div>
       </section>
