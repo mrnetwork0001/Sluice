@@ -99,7 +99,10 @@ Arc settles; every other chain is an on/off ramp. Via `SluiceGate`:
 - **Fund from any chain** - a single CCTP burn with a `FUND_STREAM` hook opens the
   stream on Arc; the employer keeps cancel rights.
 - **Withdraw to any chain** - `withdrawToChain` pays tax on Arc and burns the net
-  amount to the employee's chosen destination chain.
+  amount to the employee's chosen destination: Base, Ethereum, Arbitrum and OP
+  Sepolia, Avalanche Fuji - or **Solana Devnet** via `withdrawToDomain`, where
+  the relayer delivers the mint to the recipient's USDC token account with a v0
+  transaction + address lookup table. All six are live and proven in production.
 - **Buy a stream from any chain** - a burn with a `BUY_STREAM` hook settles the
   marketplace purchase atomically on mint; over-payments and vanished listings
   refund automatically.
@@ -134,7 +137,7 @@ Testnet deployment.
 
 ```mermaid
 flowchart LR
-    subgraph Base["Any EVM chain (live: Base Sepolia)"]
+    subgraph Base["Any CCTP chain — 5 EVM testnets + Solana Devnet (yield vault: Base Sepolia)"]
         LP[LP / Employer wallet]
         MB[TokenMessengerV2]
         RV[RemoteYieldVault<br/>8.6% APY]
@@ -249,12 +252,22 @@ it needs a small native balance on each chain you fund from or withdraw to
 at startup and HOLDs deliveries to unfunded chains - without poisoning them -
 until the wallet is topped up, at which point they deliver automatically.
 
+For Solana Devnet payouts, additionally set `SOLANA_PRIVATE_KEY` (base58 secret
+of a devnet-funded keypair) in the same `.env` - the startup preflight reports
+`Solana leg ready` with the SOL balance and Circle route registrations, and the
+first delivery creates a persistent address lookup table it reuses thereafter.
+
+**In production none of this runs locally**: the live site's relayer is a pm2
+app on a VPS (`pm2 start web/scripts/cctp-relayer.mjs --name sluice-relayer`),
+reading the same address JSONs from its clone of this repo. Updating it after
+a redeploy is `git pull && pm2 restart sluice-relayer`.
+
 **Where to see each feature**
 
 | Feature | Where to click |
 |---|---|
 | Live vesting, withdraw, advance, insure, split, sell | Dashboard → any stream card |
-| Withdraw to another chain | Stream detail → *"Pay out on Base — via CCTP"* |
+| Withdraw to another chain | Stream detail → *"Pay out on …"* (5 EVM testnets + Solana Devnet) |
 | Fund a stream from another chain | Create Stream → *Fund from: Base via CCTP* |
 | Buy a stream cross-chain | Marketplace → *"Buy from Base via CCTP ⚡"* |
 | Treasury sweep / rebalance / recall + activity feed | Treasury tab |
@@ -328,6 +341,14 @@ current deployment was exercised the same way on day one: withdrawal with an 8%
 tax split, a self-repaying advance, an insured stream, a sweep + rebalance that
 CCTP-routed half the idle escrow to Base Sepolia, and a live marketplace sale
 that paid the 0.5% protocol take (`totalMarketFees` reads `2500` on-chain).
+
+**The full withdrawal matrix has since been proven from the live site**:
+streams funded from Avalanche Fuji, and salaries withdrawn to Base Sepolia,
+Ethereum Sepolia, Arbitrum Sepolia, OP Sepolia, Avalanche Fuji **and Solana
+Devnet** - every delivery executed by the hosted relayer, ending in a real
+balance on the destination chain's explorer. The Solana leg crosses the
+EVM/SVM boundary with the same Circle-attested messages, delivered as v0
+transactions against the CCTP Solana programs.
 
 ### Redeploying
 
@@ -407,7 +428,7 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 |---|---|
 | Settlement | **Arc L1** - USDC gas, sub-second finality |
 | Contracts | Solidity 0.8.x, Foundry (via-IR), vendored ERC-3525 |
-| Cross-chain | **Circle CCTP v2** — canonical `TokenMessengerV2` + hooks, Iris attestation, local delivery relayer |
+| Cross-chain | **Circle CCTP v2** — canonical `TokenMessengerV2` + hooks, Iris attestation, hosted delivery relayer; 5 EVM testnets + Solana Devnet (Anchor / v0 + lookup table) |
 | Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding), Morpho USDC vault via ERC-4626 (the vault Circle Earn surfaces on Arc) |
 | Frontend | Next.js 16 (App Router), wagmi v3, viem, TanStack Query, Tailwind v4 |
 | Quality | 50 Foundry tests, GitHub Actions CI (fmt + build + test), manual end-to-end verification on live Arc + Base Sepolia |
@@ -430,9 +451,12 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 - [x] Scheduled top-ups / recurring pay periods
 - [ ] Org-level treasury policies and role-based access
 - [ ] Streaming invoices for contractors (reverse direction)
-- [ ] More CCTP domains — Ethereum, Arbitrum, Avalanche, Optimism
-- [ ] Solana payouts via Gateway (`withdrawToDomain` is already Solana-ready)
-- [ ] Hosted relayer so cross-chain flows need no local process
+- [x] More CCTP domains — Ethereum, Arbitrum, OP Sepolia, Avalanche Fuji all
+      live for funding and payouts (adding one is configuration, not code)
+- [x] **Solana Devnet payouts** — `withdrawToDomain` burns to the recipient's
+      USDC token account; the relayer mints via the CCTP Solana programs with a
+      v0 transaction + lookup table. Proven live, twice.
+- [x] Hosted relayer — runs as a pm2 app on a VPS; no local process needed
 
 **Phase 3 - Deeper DeFi**
 - [ ] Real yield venues behind the adapter interface (Aave-class money markets,
@@ -477,8 +501,10 @@ This is **hackathon software** - unaudited, and not production-ready:
   the same amount as a claimable shortfall, and nothing prevents `employer ==
   recipient`. A production build needs that guard plus a funded, underwritten pool.
 - The relayer is permissionless by design (it only delivers Circle-attested
-  messages) but it is a single local process — if it is not running, cross-chain
-  transfers are attested and never minted.
+  messages) but it is a single hosted process — if it is down, cross-chain
+  transfers are attested and queue until it returns (nothing is lost; deliveries
+  to unfunded chains HOLD rather than fail). Production would run redundant
+  relayers with a dedicated low-privilege gas key rather than the deployer key.
 - The treasury's liquidity buffer bounds sweeps, but adapter risk, remote-return
   latency, and insurance-pool solvency all deserve formal modeling before real
   funds are involved.
