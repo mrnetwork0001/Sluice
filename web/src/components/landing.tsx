@@ -8,6 +8,8 @@ import { liveVested, sluiceAbi } from "@/lib/sluice";
 import { formatUsdc, formatUsdcExact, shortAddr } from "@/lib/format";
 import { arcTestnet } from "@/lib/arc";
 import { SLUICE_ADDRESSES } from "@/lib/sluice";
+import { TREASURY_ADDRESS } from "@/lib/crosschain";
+import { treasuryAbi } from "@/lib/treasuryAbi";
 import { Badge, Card, ProgressBar } from "./ui";
 import { Reveal } from "./reveal";
 
@@ -195,8 +197,107 @@ const rails = [
   ["ERC-3525", "semi-fungible salary streams"],
   ["Circle Swap Kit", "paycheck auto-conversion"],
   ["CCTP v2", "cross-chain treasury routing"],
-  ["Foundry", "44 tests across payroll and cross-chain"],
+  ["Foundry", "50 tests across payroll and cross-chain"],
 ];
+
+/* -------------------------------------------------------------- revenue model */
+
+/**
+ * The business model, stated with live figures. Both numbers are protocol
+ * revenue readable from chain: treasury NAV above swept principal, and the
+ * cumulative marketplace take. The claim: Sluice is free at the point of use.
+ */
+function RevenueSection({ sluice }: { sluice: `0x${string}` | undefined }) {
+  const { data } = useReadContracts({
+    contracts: [
+      ...(TREASURY_ADDRESS
+        ? [
+            {
+              address: TREASURY_ADDRESS,
+              abi: treasuryAbi,
+              functionName: "yieldEarned",
+              chainId: arcTestnet.id,
+            } as const,
+          ]
+        : []),
+      ...(sluice
+        ? [
+            {
+              address: sluice,
+              abi: sluiceAbi,
+              functionName: "totalMarketFees",
+              chainId: arcTestnet.id,
+            } as const,
+          ]
+        : []),
+    ],
+    allowFailure: true,
+    query: { enabled: Boolean(TREASURY_ADDRESS || sluice), refetchInterval: 15_000 },
+  });
+  const yieldEarned =
+    data?.[0]?.status === "success" ? (data[0].result as bigint) : undefined;
+  const marketFees =
+    data?.[1]?.status === "success" ? (data[1].result as bigint) : undefined;
+
+  const rows = [
+    {
+      tag: "Float yield",
+      title: "Idle escrow earns while salaries vest",
+      body: "Employers pre-fund streams, so roughly half the payroll sits idle at any moment. Anyone can sweep it to the treasury, which routes it across yield venues on Arc and, via CCTP, on other chains. Every dollar of NAV above swept principal is protocol revenue.",
+      fn: "SluiceTreasury.claimYield(to)",
+      figure: yieldEarned !== undefined ? `+${formatUsdc(yieldEarned)} USDC earned` : undefined,
+    },
+    {
+      tag: "Take rate",
+      title: "0.5% when future income trades hands",
+      body: "Selling a stream is a windfall moment - a seller accepting a 5% discount for instant cash pays 50bps of the ask to the protocol at purchase. Streams, withdrawals and advances stay free; the fee sits only on the liquidity event.",
+      fn: "MARKET_FEE_BPS = 50",
+      figure: marketFees !== undefined ? `${formatUsdc(marketFees)} USDC collected` : undefined,
+    },
+    {
+      tag: "Free to use",
+      title: "No fees on payroll itself",
+      body: "Creating streams, withdrawing salary and borrowing advances carry zero protocol fee, and insurance premiums accrue entirely to the stakers who underwrite the risk. Adoption first; revenue rides the float, not the paycheck.",
+      fn: "createStream · withdraw · advance — 0 bps",
+      figure: undefined,
+    },
+  ];
+
+  return (
+    <section className="py-8">
+      <SectionHeading
+        eyebrow="Business model"
+        title="Free for payroll. Revenue is the float."
+        sub="The same model payroll processors have run for decades - earn on the pre-funded window - except here the numbers are onchain and anyone can audit them."
+      />
+      <div className="mt-10 overflow-hidden rounded-lg border border-[var(--hairline)] bg-[var(--panel)]">
+        {rows.map((row, index) => (
+          <Reveal key={row.tag} delay={Math.min(index, 3) * 70}>
+            <div className="group grid gap-x-6 gap-y-2 border-t border-[var(--hairline)] px-5 py-5 transition-colors first:border-t-0 hover:bg-[var(--panel-raised)] md:grid-cols-[128px_1fr_auto] md:items-baseline">
+              <div className="label pt-0.5 text-emerald-400/70">{row.tag}</div>
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-semibold text-zinc-100">{row.title}</h3>
+                <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                  {row.body}
+                </p>
+              </div>
+              <div className="flex flex-col items-start gap-1 md:items-end">
+                {row.figure ? (
+                  <span className="font-mono text-xs tabular-nums text-emerald-300">
+                    {row.figure}
+                  </span>
+                ) : null}
+                <code className="truncate font-mono text-[11px] text-zinc-600 transition-colors group-hover:text-cyan-300/70">
+                  {row.fn}
+                </code>
+              </div>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 
 /* ---------------------------------------------------------------- live ledger */
@@ -350,18 +451,30 @@ export function Landing() {
   const metricCalls = [
     "totalEscrowed",
     "totalSettled",
-    "totalTaxWithheld",
     "totalStreams",
+    "totalMarketFees",
   ];
   const { data: metrics } = useReadContracts({
-    contracts: sluice
-      ? metricCalls.map((functionName) => ({
-          address: sluice,
-          abi: sluiceAbi,
-          functionName,
-          chainId: arcTestnet.id,
-        }))
-      : [],
+    contracts: [
+      ...(sluice
+        ? metricCalls.map((functionName) => ({
+            address: sluice,
+            abi: sluiceAbi,
+            functionName,
+            chainId: arcTestnet.id,
+          }))
+        : []),
+      ...(TREASURY_ADDRESS
+        ? [
+            {
+              address: TREASURY_ADDRESS,
+              abi: treasuryAbi,
+              functionName: "yieldEarned",
+              chainId: arcTestnet.id,
+            },
+          ]
+        : []),
+    ],
     allowFailure: true,
     query: { enabled: Boolean(sluice), refetchInterval: 10_000 },
   });
@@ -373,8 +486,15 @@ export function Landing() {
   };
   const escrowed = readMetric(0);
   const settled = readMetric(1);
-  const taxWithheld = readMetric(2);
-  const streamCount = readMetric(3);
+  const streamCount = readMetric(2);
+  const marketFees = readMetric(3);
+  const yieldEarned = readMetric(4);
+  // Protocol revenue = marketplace take + treasury float yield. Rendered with
+  // formatUsdcExact: early figures are sub-cent and must not display as 0.00.
+  const revenue =
+    marketFees !== undefined || yieldEarned !== undefined
+      ? (marketFees ?? 0n) + (yieldEarned ?? 0n)
+      : undefined;
 
   return (
     <div className="pb-10">
@@ -469,10 +589,10 @@ export function Landing() {
         </div>
         <div className="text-center">
           <div className="font-mono text-3xl font-semibold tabular-nums text-amber-300">
-            {taxWithheld !== undefined ? formatUsdc(taxWithheld) : "-"}
+            {revenue !== undefined ? formatUsdcExact(revenue) : "-"}
           </div>
           <div className="mt-1 text-xs uppercase tracking-wider text-zinc-500">
-            USDC auto-withheld as tax
+            USDC protocol revenue earned
           </div>
         </div>
       </section>
@@ -530,6 +650,8 @@ export function Landing() {
           ))}
         </div>
       </section>
+
+      <RevenueSection sluice={sluice} />
 
       {/* Personas */}
       <section className="py-16">
