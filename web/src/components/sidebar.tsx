@@ -219,24 +219,29 @@ export function SidebarContent({
   // Default to the full (employer) view; load the saved choice after mount so
   // the server-rendered markup never mismatches the client.
   const [role, setRole] = useState<Role>("employer");
-  useEffect(() => {
-    if (window.localStorage.getItem(ROLE_STORAGE_KEY) === "employee") setRole("employee");
-  }, []);
-  // Smart default: a wallet that receives streams but has never created one is
-  // an employee. Only applies while the user has never chosen explicitly, and
-  // never writes storage - an ephemeral guess, not a decision.
   const { address } = useAccount();
   const { data: streamRefs } = useStreamIds();
+  const storageKey = address ? `${ROLE_STORAGE_KEY}:${address.toLowerCase()}` : ROLE_STORAGE_KEY;
+  // The role is a fact about the connected WALLET, so explicit choices are
+  // remembered per address, and the smart guess - receives streams, employs
+  // none => employee - re-evaluates whenever the wallet changes. A choice made
+  // under one wallet (or none) never sticks to another.
   useEffect(() => {
-    if (!address || !streamRefs || window.localStorage.getItem(ROLE_STORAGE_KEY)) return;
-    const me = address.toLowerCase();
-    const receives = streamRefs.some((ref) => ref.recipient.toLowerCase() === me);
-    const employs = streamRefs.some((ref) => ref.employer.toLowerCase() === me);
-    if (receives && !employs) setRole("employee");
-  }, [address, streamRefs]);
+    const saved = window.localStorage.getItem(storageKey);
+    if (saved === "employee" || saved === "employer") {
+      setRole(saved);
+      return;
+    }
+    if (address && streamRefs) {
+      const me = address.toLowerCase();
+      const receives = streamRefs.some((ref) => ref.recipient.toLowerCase() === me);
+      const employs = streamRefs.some((ref) => ref.employer.toLowerCase() === me);
+      setRole(receives && !employs ? "employee" : "employer");
+    }
+  }, [address, streamRefs, storageKey]);
   const pickRole = (next: Role) => {
     setRole(next);
-    window.localStorage.setItem(ROLE_STORAGE_KEY, next);
+    window.localStorage.setItem(storageKey, next);
   };
   const links = NAV_LINKS.filter((link) => (link.roles as readonly Role[]).includes(role));
 
