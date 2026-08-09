@@ -165,6 +165,20 @@ function StreamDetail({ stream }: { stream: Stream }) {
   );
 }
 
+/** Seller-side half of the stale-listing guard: taking value out of a listed
+ *  stream doesn't clear the ask on-chain, it just makes it unbuyable. Say so. */
+function ListedValueNotice({ stream, action }: { stream: Stream; action: string }) {
+  if (stream.salePrice === 0n) return null;
+  return (
+    <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-xs leading-relaxed text-amber-300">
+      This stream is listed at {formatUsdc(stream.salePrice)} USDC. {action} reduces its
+      remaining value without updating the ask - once the ask isn&apos;t below the
+      remaining value, buyers are refused and the listing goes stale. Delist first,
+      or relist at a fair price afterwards.
+    </div>
+  );
+}
+
 function WithdrawCard({ stream, available }: { stream: Stream; available: bigint }) {
   const { send, status, reset, busy } = useSluiceWrite();
   const { address } = useAccount();
@@ -211,6 +225,7 @@ function WithdrawCard({ stream, available }: { stream: Stream; available: bigint
   return (
     <Card>
       <CardTitle hint={`tax ${formatBps(stream.taxBps)} auto-split`}>Withdraw salary</CardTitle>
+      <ListedValueNotice stream={stream} action="Withdrawing" />
       <div className="flex gap-2">
         <input
           className={inputClass}
@@ -384,6 +399,7 @@ function AdvanceCard({ stream }: { stream: Stream }) {
   return (
     <Card>
       <CardTitle hint="borrow against future salary">Salary advance</CardTitle>
+      <ListedValueNotice stream={stream} action="Borrowing" />
       <p className="mb-3 text-xs text-zinc-500">
         Take up to 50% of your unwithdrawn stream value now; it repays itself as salary vests.
         Available: <span className="font-mono text-zinc-300">{formatUsdc(cap)}</span> USDC.
