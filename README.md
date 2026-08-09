@@ -131,7 +131,11 @@ earn on the pre-funded window - except auditable by anyone.
 Next.js 16 App Router app: marketing landing, live dashboard with per-second
 vesting animation, stream detail (withdraw / advance / insure / split / sell),
 marketplace, treasury console, and automation rules - all wired to the live Arc
-Testnet deployment.
+Testnet deployment. An **employer / employee switcher** in the sidebar scopes
+the navigation to the role: employers get the full product, employees get the
+paycheck side (dashboard, marketplace, automation, onboarding) with creation
+surfaces hidden - presentation only, so deep links keep working and the
+contracts remain the real permission layer.
 
 ## Architecture
 
