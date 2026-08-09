@@ -207,7 +207,11 @@ Sluice's local balance triggers `treasury.recall()` inside `_push` →
 
 ## Quick Start
 
-Requirements: Node 20+ and an injected wallet (MetaMask or similar).
+**No setup needed: the app is live at [www.sluiceapp.xyz](https://www.sluiceapp.xyz)** —
+connect any EVM wallet and it offers to add Arc Testnet automatically.
+
+To run it locally instead — requirements: Node 20+ and an injected wallet
+(MetaMask or similar).
 
 ```bash
 git clone --recurse-submodules https://github.com/mrnetwork0001/Sluice.git
@@ -417,7 +421,7 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 - [x] **Circle Gateway / Unified Balance Kit** on the dashboard
 - [x] **Circle Wallets** — seedless MPC onboarding for employees at `/onboard`
 - [x] **Circle Earn** — idle escrow earns real yield in the Morpho USDC vault
-- [ ] Public deployment at **sluiceapp.xyz**
+- [x] Public deployment at **[sluiceapp.xyz](https://www.sluiceapp.xyz)** — frontend on Vercel, relayer on a VPS
 
 **Phase 2 - Payroll operations** — partly shipped
 - [x] Batch stream creation — paste a roster or drop a CSV, exact amounts or
