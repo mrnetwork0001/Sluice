@@ -33,14 +33,22 @@ export function UnifiedBalancePanel() {
   useEffect(() => {
     if (!address) return;
     let cancelled = false;
-    setLoading(true);
-    setError(undefined);
-    fetchUnifiedBalance(address)
-      .then((result) => !cancelled && setBalance(result))
-      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => !cancelled && setLoading(false));
+    const load = (initial: boolean) => {
+      if (initial) setLoading(true);
+      setError(undefined);
+      fetchUnifiedBalance(address)
+        .then((result) => !cancelled && setBalance(result))
+        .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)))
+        .finally(() => initial && !cancelled && setLoading(false));
+    };
+    load(true);
+    // Gateway credits deposits only after source-chain finality, so the moment
+    // of crediting is never a user action - poll so it appears on its own
+    // instead of on the next page refresh.
+    const timer = setInterval(() => load(false), 5_000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, [address, reloadKey]);
 
