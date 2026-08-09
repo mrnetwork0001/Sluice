@@ -484,6 +484,40 @@ contract CrossChainTest is Test {
         assertApproxEqAbs(treasury.idle(), 3_258e6, 1e6); // principal + 8.6% yield
     }
 
+    // --------------------------------------------------- protocol revenue
+
+    function test_ClaimYieldPaysSurplusAndKeepsPrincipalCovered() public {
+        vm.prank(employer);
+        sluice.createStream(employee, 10_000e6, 30 days, 0, address(0));
+        sluice.sweepIdle();
+        treasury.rebalance();
+        _deliverHook(messengerA, usdcB, address(vault), ARC);
+
+        vm.warp(block.timestamp + 365 days); // 126 local + 258 remote yield accrues
+
+        address sink = makeAddr("revenue");
+        uint256 claimed = treasury.claimYield(sink);
+
+        // Local liquidity fronts the whole surplus, remote yield included.
+        assertApproxEqAbs(claimed, 384e6, 1e6);
+        assertEq(usdcA.balanceOf(sink), claimed);
+        assertGe(treasury.totalAssets(), treasury.principal());
+    }
+
+    function test_RevertWhen_ClaimYieldByNonDeployer() public {
+        vm.prank(lp);
+        vm.expectRevert("Treasury: only deployer");
+        treasury.claimYield(lp);
+    }
+
+    function test_RevertWhen_NoYieldToClaim() public {
+        vm.prank(employer);
+        sluice.createStream(employee, 10_000e6, 30 days, 0, address(0));
+        sluice.sweepIdle(); // principal parked, nothing accrued yet
+        vm.expectRevert("Treasury: no yield");
+        treasury.claimYield(address(this));
+    }
+
     function test_RevertWhen_VaultExitByNonRelayer() public {
         vm.expectRevert("Vault: only relayer");
         vault.exitToArc();

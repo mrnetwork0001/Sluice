@@ -184,6 +184,48 @@ contract SluiceTest is Test {
         sluice.buyStream(id);
     }
 
+    // -------------------------------------------- marketplace take rate
+
+    function test_BuyStreamSplitsProtocolFee() public {
+        address revenue = makeAddr("revenue");
+        sluice.setFeeRecipient(revenue);
+
+        uint256 id = _createStream();
+        vm.prank(employee);
+        sluice.listStreamForSale(id, 950e6);
+
+        uint256 employeeBefore = usdc.balanceOf(employee);
+        uint256 lpBefore = usdc.balanceOf(lp);
+        vm.prank(lp);
+        sluice.buyStream(id);
+
+        uint256 fee = (950e6 * sluice.MARKET_FEE_BPS()) / sluice.BPS(); // 4.75 USDC
+        assertEq(usdc.balanceOf(revenue), fee);
+        assertEq(usdc.balanceOf(employee) - employeeBefore, 950e6 - fee);
+        assertEq(lpBefore - usdc.balanceOf(lp), 950e6); // buyer still pays the ask
+        assertEq(sluice.totalMarketFees(), fee);
+        assertEq(sluice.ownerOf(id), lp);
+    }
+
+    function test_BuyStreamFeeWaivedUntilRecipientWired() public {
+        uint256 id = _createStream();
+        vm.prank(employee);
+        sluice.listStreamForSale(id, 950e6);
+
+        uint256 employeeBefore = usdc.balanceOf(employee);
+        vm.prank(lp);
+        sluice.buyStream(id);
+
+        assertEq(usdc.balanceOf(employee) - employeeBefore, 950e6); // full ask, no fee
+        assertEq(sluice.totalMarketFees(), 0);
+    }
+
+    function test_RevertWhen_FeeRecipientRewired() public {
+        sluice.setFeeRecipient(makeAddr("revenue"));
+        vm.expectRevert("Sluice: recipient set");
+        sluice.setFeeRecipient(makeAddr("other"));
+    }
+
     // ----------------------------------------------------- salary advance
 
     function test_AdvanceCappedAtFiftyPercent() public {

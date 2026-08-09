@@ -14,6 +14,7 @@ contract Deploy is Script {
         uint256 key = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(key);
         Sluice sluice = new Sluice(address(0)); // address(0) -> native Arc testnet USDC
+        sluice.setFeeRecipient(vm.addr(key)); // marketplace take rate -> deployer wallet
         vm.stopBroadcast();
 
         string memory json = "deployments";

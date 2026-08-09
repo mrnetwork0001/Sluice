@@ -27,6 +27,7 @@ contract SluiceTreasury is ICCTPHookReceiver {
 
     event Swept(uint256 amount);
     event Recalled(uint256 amount);
+    event YieldClaimed(address indexed to, uint256 amount);
     event Rebalanced(uint256[] allocations);
     event RemoteReturnRequested(address indexed vault, uint32 indexed domain);
     event RemoteReturned(uint256 amount);
@@ -110,6 +111,28 @@ contract SluiceTreasury is ICCTPHookReceiver {
     function notifyDeposit(uint256 amount) external onlySluice {
         principal += amount;
         emit Swept(amount);
+    }
+
+    /// @notice Protocol revenue: pay out NAV in excess of swept principal. Makes the
+    ///         surplus liquid from idle funds and local adapters; yield still parked
+    ///         in remote vaults comes home on later rebalances and is claimable then.
+    ///         Principal coverage is never touched — after a claim, NAV ≥ principal.
+    function claimYield(address to) external returns (uint256 amount) {
+        require(msg.sender == deployer, "Treasury: only deployer");
+        require(to != address(0), "Treasury: to zero");
+        uint256 assets = totalAssets();
+        uint256 surplus = assets > principal ? assets - principal : 0;
+        require(surplus > 0, "Treasury: no yield");
+        uint256 have = idle();
+        for (uint256 i = 0; i < adapters.length && have < surplus; i++) {
+            if (!adapters[i].isRemote()) {
+                have += adapters[i].withdraw(surplus - have);
+            }
+        }
+        amount = have < surplus ? have : surplus;
+        require(amount > 0, "Treasury: yield not local");
+        require(usdc.transfer(to, amount), "Treasury: transfer failed");
+        emit YieldClaimed(to, amount);
     }
 
     /// @notice Sluice pulls liquidity back to cover a withdrawal: idle first, then

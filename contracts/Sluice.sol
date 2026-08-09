@@ -28,6 +28,7 @@ contract Sluice is ERC3525 {
     uint256 public constant BPS = 10_000;
     uint256 public constant INSURANCE_PREMIUM_BPS = 50; // 0.5%
     uint256 public constant MAX_ADVANCE_BPS = 5_000; // 50% of remaining value
+    uint256 public constant MARKET_FEE_BPS = 50; // 0.5% protocol take on stream sales
 
     IERC20 public immutable usdc;
 
@@ -57,6 +58,8 @@ contract Sluice is ERC3525 {
     // Cross-chain gate (CCTP entry/exit) and idle-escrow yield treasury.
     address public gate;
     address public treasury;
+    /// @notice Destination for marketplace take-rate fees; fees are waived until wired.
+    address public feeRecipient;
     /// @dev Sum of remaining stream value across all live streams. Together with
     ///      poolBalance this is the contract's USDC obligation, bounding sweeps.
     uint256 public escrowLiability;
@@ -71,6 +74,8 @@ contract Sluice is ERC3525 {
     uint256 public totalSettled;
     /// @notice Total USDC ever routed to tax vaults.
     uint256 public totalTaxWithheld;
+    /// @notice Total USDC ever collected as marketplace take-rate fees.
+    uint256 public totalMarketFees;
     /// @notice Number of streams ever opened.
     uint256 public totalStreams;
 
@@ -86,6 +91,7 @@ contract Sluice is ERC3525 {
     event StreamWithdrawal(uint256 indexed streamId, address indexed to, uint256 amount, uint256 tax);
     event StreamListed(uint256 indexed streamId, address indexed seller, uint256 salePrice);
     event StreamSold(uint256 indexed streamId, address indexed seller, address indexed buyer, uint256 salePrice);
+    event MarketFeePaid(uint256 indexed streamId, uint256 fee);
     event SalaryAdvance(uint256 indexed streamId, address indexed to, uint256 amount);
     event StreamInsured(uint256 indexed streamId, uint256 premium);
     event StreamCanceled(uint256 indexed streamId, uint256 paidOut, uint256 refunded, uint256 shortfall);
@@ -112,6 +118,12 @@ contract Sluice is ERC3525 {
     function setTreasury(address treasury_) external {
         require(treasury == address(0) && treasury_ != address(0), "Sluice: treasury set");
         treasury = treasury_;
+    }
+
+    /// @notice One-time wiring of the marketplace fee destination (deploy-time).
+    function setFeeRecipient(address feeRecipient_) external {
+        require(feeRecipient == address(0) && feeRecipient_ != address(0), "Sluice: recipient set");
+        feeRecipient = feeRecipient_;
     }
 
     // ------------------------------------------------------------- streaming
@@ -413,7 +425,13 @@ contract Sluice is ERC3525 {
         require(buyer != seller, "Sluice: self purchase");
 
         s.salePrice = 0;
-        require(usdc.transferFrom(payer, seller, price), "Sluice: payment failed");
+        uint256 fee = feeRecipient == address(0) ? 0 : (price * MARKET_FEE_BPS) / BPS;
+        require(usdc.transferFrom(payer, seller, price - fee), "Sluice: payment failed");
+        if (fee > 0) {
+            require(usdc.transferFrom(payer, feeRecipient, fee), "Sluice: fee failed");
+            totalMarketFees += fee;
+            emit MarketFeePaid(streamId, fee);
+        }
         _transferToken(seller, buyer, streamId);
         emit StreamSold(streamId, seller, buyer, price);
     }
