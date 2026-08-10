@@ -127,15 +127,26 @@ claimable protocol revenue) and the **0.5% marketplace take**
 (`totalMarketFees`). The same model payroll processors have run for decades -
 earn on the pre-funded window - except auditable by anyone.
 
+### Email onboarding - get paid without a crypto wallet
+Employees sign in with **just an email**: an OTP arrives (from the SMTP sender
+configured in the Circle console), they set a PIN, and Circle's user-controlled
+MPC wallets provision an address on Arc. Withdrawals are signed with the PIN
+via contract-execution challenges - no seed phrase, no extension - and because
+gas on Arc *is* USDC, their salary pays its own fees. Sessions persist across
+refreshes (~55 min, matching Circle's token lifetime) and the signed-in payroll
+wallet shows in the sidebar with its live balance.
+
 ### Full product frontend
 Next.js 16 App Router app: marketing landing, live dashboard with per-second
-vesting animation, stream detail (withdraw / advance / insure / split / sell),
-marketplace, treasury console, and automation rules - all wired to the live Arc
-Testnet deployment. An **employer / employee switcher** in the sidebar scopes
-the navigation to the role: employers get the full product, employees get the
-paycheck side (dashboard, marketplace, automation, onboarding) with creation
-surfaces hidden - presentation only, so deep links keep working and the
-contracts remain the real permission layer.
+vesting animation, stream detail (withdraw / advance / insure / split / sell -
+including **"sell part of my salary"**: carve a slice of future income and list
+it on the marketplace in one flow), marketplace, treasury console, and
+automation rules - all wired to the live Arc Testnet deployment. The dashboard
+carries a **protocol-wide activity feed** (every event linking to its
+transaction) and a one-click **tax-withholding CSV export** for compliance. An
+**employer / employee switcher** in the sidebar scopes the navigation to the
+role - presentation only, so deep links keep working and the contracts remain
+the real permission layer.
 
 ## Architecture
 
@@ -240,6 +251,11 @@ Optional environment (only for the Circle-hosted features — see
 | `NEXT_PUBLIC_CIRCLE_APP_ID` | MPC wallet onboarding at `/onboard` |
 | `CIRCLE_API_KEY` | server-side Circle Wallets + Swap Kit proxy |
 
+Email sign-in additionally requires an **SMTP sender configured in the Circle
+developer console** (Configurator → Authentication Methods → Email) - without
+it Circle replies with error 155150 and no OTP is sent. The live deployment
+sends from `noreply@sluiceapp.xyz` via Resend.
+
 **Cross-chain flows need the relayer.** Funding or exiting via Base Sepolia
 requires the CCTP relayer to deliver attested messages and execute their hooks:
 
@@ -276,7 +292,7 @@ a redeploy is `git pull && pm2 restart sluice-relayer`.
 | Buy a stream cross-chain | Marketplace → *"Buy from Base via CCTP ⚡"* |
 | Treasury sweep / rebalance / recall + activity feed | Treasury tab |
 | Swap Kit auto-triggers + history | Automation tab |
-| Seedless employee wallet (Circle MPC) | `/onboard` |
+| Email sign-in / seedless employee wallet (Circle MPC) | `/onboard` — "Get Paid" |
 
 ## Testing
 
@@ -433,7 +449,7 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 | Settlement | **Arc L1** - USDC gas, sub-second finality |
 | Contracts | Solidity 0.8.x, Foundry (via-IR), vendored ERC-3525 |
 | Cross-chain | **Circle CCTP v2** — canonical `TokenMessengerV2` + hooks, Iris attestation, hosted delivery relayer; 5 EVM testnets + Solana Devnet (Anchor / v0 + lookup table) |
-| Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding), Morpho USDC vault via ERC-4626 (the vault Circle Earn surfaces on Arc) |
+| Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding with email OTP login), Morpho USDC vault via ERC-4626 (the vault Circle Earn surfaces on Arc) |
 | Frontend | Next.js 16 (App Router), wagmi v3, viem, TanStack Query, Tailwind v4 |
 | Quality | 50 Foundry tests, GitHub Actions CI (fmt + build + test), manual end-to-end verification on live Arc + Base Sepolia |
 
@@ -444,7 +460,7 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 - [x] **Real CCTP v2** — canonical `TokenMessengerV2`, Circle Iris attestation,
       Arc domain 26 ↔ Base Sepolia domain 6. The mock messenger is gone.
 - [x] **Circle Gateway / Unified Balance Kit** on the dashboard
-- [x] **Circle Wallets** — seedless MPC onboarding for employees at `/onboard`
+- [x] **Circle Wallets** — seedless MPC onboarding at `/onboard`, including **email OTP sign-in** (works on any device, PIN-signed withdrawals)
 - [x] **Circle Earn** — idle escrow earns real yield in the Morpho USDC vault
 - [x] Public deployment at **[sluiceapp.xyz](https://www.sluiceapp.xyz)** — frontend on Vercel, relayer on a VPS
 
@@ -476,8 +492,8 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 - [ ] Fiat off-ramp partners on withdrawal (salary → bank account)
 - [ ] Account-abstraction wallets & gas sponsorship for employees
 - [ ] Mobile-first PWA
-- [ ] Compliance modules: jurisdiction-aware withholding templates, exportable
-      tax-vault reports
+- [ ] Compliance modules: jurisdiction-aware withholding templates (the
+      exportable tax-withholding CSV is already live on the dashboard)
 
 ## Screenshots
 
