@@ -509,7 +509,11 @@ slide script in [`docs/PITCH_DECK.md`](docs/PITCH_DECK.md).
 
 ## Security & Disclaimers
 
-This is **hackathon software** - unaudited, and not production-ready:
+The engineering is production-grade: a live deployment on a custom domain, six
+source-verified contracts, 50 tests, real Circle infrastructure end to end, and
+a hosted relayer. The **contracts are not yet production-custody-ready**: they
+are unaudited, and real salaries should not touch them until an audit plus the
+items below - every one of which is known, bounded, and listed here on purpose:
 
 - The live deployment uses **native Arc USDC and Circle's attested CCTP v2** -
   nothing on the critical path is mocked. `MockUSDC` and `MockERC4626` remain in
