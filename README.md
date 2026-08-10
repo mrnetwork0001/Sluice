@@ -4,13 +4,14 @@
 
 ### Payroll that flows, block by block.
 
-**Streaming USDC payroll and treasury infrastructure on [Arc](https://arc.network) -
+**Streaming USDC payroll and treasury infrastructure on [Arc](https://arc.io) -
 salaries vest every second, taxes split themselves, income becomes a liquid asset,
 and idle escrow earns yield across chains.**
 
 *Built for the Programmable Money Hackathon · DeFi Track*
 
-<img src="docs/screenshots/02-dashboard.png" alt="Sluice dashboard" width="850"/>
+<img width="1377" height="850" alt="Screenshot 2026-08-10 at 04 47 42" src="https://github.com/user-attachments/assets/37e75050-2325-4305-9218-78aa915281dd" />
+
 
 
 ---
@@ -201,7 +202,7 @@ ships in the deployment above.
 > **No mock messenger.** Cross-chain transfers go through Circle's canonical
 > `TokenMessengerV2` and are attested by Circle's Iris API; the local
 > [`web/scripts/cctp-relayer.mjs`](web/scripts/cctp-relayer.mjs) only *delivers*
-> attested messages and invokes their hooks — it does not stand in for CCTP.
+> attested messages and invokes their hooks - it does not stand in for CCTP.
 > Circle's **Bridge Kit** is deliberately not used: it does not express the
 > `depositForBurnWithHook` payloads Sluice's gate depends on.
 
@@ -225,10 +226,10 @@ Sluice's local balance triggers `treasury.recall()` inside `_push` →
 
 ## Quick Start
 
-**No setup needed: the app is live at [www.sluiceapp.xyz](https://www.sluiceapp.xyz)** —
+**No setup needed: the app is live at [www.sluiceapp.xyz](https://www.sluiceapp.xyz)** -
 connect any EVM wallet and it offers to add Arc Testnet automatically.
 
-To run it locally instead — requirements: Node 20+ and an injected wallet
+To run it locally instead - requirements: Node 20+ and an injected wallet
 (MetaMask or similar).
 
 ```bash
@@ -236,14 +237,14 @@ git clone --recurse-submodules https://github.com/mrnetwork0001/Sluice.git
 cd Sluice/web && npm install && npm run dev
 ```
 
-Open `http://localhost:3000` and connect your wallet — the app offers to add
+Open `http://localhost:3000` and connect your wallet - the app offers to add
 **Arc Testnet** (chain `5042002`) automatically. Fund it from the faucet linked in
 the app; on Arc, USDC *is* the gas token, so one faucet claim covers both.
 
 There is no local chain to boot and no seed data to generate: the app talks
 directly to the live Arc Testnet deployment listed below.
 
-Optional environment (only for the Circle-hosted features — see
+Optional environment (only for the Circle-hosted features - see
 [`web/.env.local.example`](web/.env.local.example)):
 
 | Variable | Enables |
@@ -264,12 +265,12 @@ PRIVATE_KEY=0x... node web/scripts/cctp-relayer.mjs
 ```
 
 Without it a burn is still attested by Circle, but nothing mints on the
-destination chain — the stream will not appear.
+destination chain - the stream will not appear.
 
 The relayer wallet pays gas **on the destination chain** of every delivery, so
 it needs a small native balance on each chain you fund from or withdraw to
 (Base Sepolia ETH, Sepolia ETH, Fuji AVAX, …). It prints a per-chain gas report
-at startup and HOLDs deliveries to unfunded chains - without poisoning them -
+at startup and HOLDs deliveries to unfunded chains - without poisoning them;
 until the wallet is topped up, at which point they deliver automatically.
 
 For Solana Devnet payouts, additionally set `SOLANA_PRIVATE_KEY` (base58 secret
@@ -448,44 +449,44 @@ docs/                         screenshots · pitch deck · PITCH_DECK.md
 |---|---|
 | Settlement | **Arc L1** - USDC gas, sub-second finality |
 | Contracts | Solidity 0.8.x, Foundry (via-IR), vendored ERC-3525 |
-| Cross-chain | **Circle CCTP v2** — canonical `TokenMessengerV2` + hooks, Iris attestation, hosted delivery relayer; 5 EVM testnets + Solana Devnet (Anchor / v0 + lookup table) |
+| Cross-chain | **Circle CCTP v2** - canonical `TokenMessengerV2` + hooks, Iris attestation, hosted delivery relayer; 5 EVM testnets + Solana Devnet (Anchor / v0 + lookup table) |
 | Stablecoin tooling | **Swap Kit** (real USDC→EURC auto-conversion), **Gateway / Unified Balance Kit** (unified cross-chain balance), **Circle Wallets** (MPC onboarding with email OTP login), Morpho USDC vault via ERC-4626 (the vault Circle Earn surfaces on Arc) |
 | Frontend | Next.js 16 (App Router), wagmi v3, viem, TanStack Query, Tailwind v4 |
 | Quality | 50 Foundry tests, GitHub Actions CI (fmt + build + test), manual end-to-end verification on live Arc + Base Sepolia |
 
 ## Roadmap & Planned Integrations
 
-**Phase 1 - Production rails** — ✅ shipped
-- [x] **Arc testnet deployment** of the full contract suite — live, addresses above
-- [x] **Real CCTP v2** — canonical `TokenMessengerV2`, Circle Iris attestation,
+**Phase 1 - Production rails** - ✅ shipped
+- [x] **Arc testnet deployment** of the full contract suite - live, addresses above
+- [x] **Real CCTP v2** - canonical `TokenMessengerV2`, Circle Iris attestation,
       Arc domain 26 ↔ Base Sepolia domain 6. The mock messenger is gone.
 - [x] **Circle Gateway / Unified Balance Kit** on the dashboard
-- [x] **Circle Wallets** — seedless MPC onboarding at `/onboard`, including **email OTP sign-in** (works on any device, PIN-signed withdrawals)
-- [x] **Circle Earn** — idle escrow earns real yield in the Morpho USDC vault
+- [x] **Circle Wallets** - seedless MPC onboarding at `/onboard`, including **email OTP sign-in** (works on any device, PIN-signed withdrawals)
+- [x] **Circle Earn** - idle escrow earns real yield in the Morpho USDC vault
 - [x] Public deployment at **[sluiceapp.xyz](https://www.sluiceapp.xyz)** — frontend on Vercel, relayer on a VPS
 
-**Phase 2 - Payroll operations** — partly shipped
-- [x] Batch stream creation — paste a roster or drop a CSV, exact amounts or
+**Phase 2 - Payroll operations** - partly shipped
+- [x] Batch stream creation - paste a roster or drop a CSV, exact amounts or
       percentage splits, fundable from another chain
-- [x] **EURC salary legs** — on-withdrawal FX via Swap Kit auto-triggers
+- [x] **EURC salary legs** - on-withdrawal FX via Swap Kit auto-triggers
 - [x] Scheduled top-ups / recurring pay periods
 - [ ] Org-level treasury policies and role-based access
 - [ ] Streaming invoices for contractors (reverse direction)
-- [x] More CCTP domains — Ethereum, Arbitrum, OP Sepolia, Avalanche Fuji all
+- [x] More CCTP domains - Ethereum, Arbitrum, OP Sepolia, Avalanche Fuji all
       live for funding and payouts (adding one is configuration, not code)
-- [x] **Solana Devnet payouts** — `withdrawToDomain` burns to the recipient's
+- [x] **Solana Devnet payouts** - `withdrawToDomain` burns to the recipient's
       USDC token account; the relayer mints via the CCTP Solana programs with a
       v0 transaction + lookup table. Proven live, twice.
-- [ ] **Solana funding** — the same `FUND_STREAM` hook with a Solana signer:
+- [ ] **Solana funding** - the same `FUND_STREAM` hook with a Solana signer:
       the CCTP Solana program already supports `deposit_for_burn_with_hook`,
       so opening a stream from a Solana wallet is wallet UX, not new protocol work
-- [x] Hosted relayer — runs as a pm2 app on a VPS; no local process needed
+- [x] Hosted relayer - runs as a pm2 app on a VPS; no local process needed
 
 **Phase 3 - Deeper DeFi**
 - [ ] Real yield venues behind the adapter interface (Aave-class money markets,
       tokenized T-bill vaults) with risk-weighted allocation targets
 - [ ] Secondary-market order book for streams (bids, auctions, partial fills)
-- [ ] Under-collateralized credit scoring from on-chain income history
+- [ ] Under-collateralized credit scoring from onchain income history
 - [ ] Insurance-pool tranching (junior/senior risk)
 
 **Phase 4 - Reach**
@@ -510,14 +511,14 @@ slide script in [`docs/PITCH_DECK.md`](docs/PITCH_DECK.md).
 
 This is **hackathon software** - unaudited, and not production-ready:
 
-- The live deployment uses **native Arc USDC and Circle's attested CCTP v2** —
+- The live deployment uses **native Arc USDC and Circle's attested CCTP v2** -
   nothing on the critical path is mocked. `MockUSDC` and `MockERC4626` remain in
   `contracts/mocks/` purely as Foundry test fixtures and are not deployed.
 - `RemoteYieldVault` and the `ReserveYieldAdapter` model yield from pre-funded
   reserves rather than a real venue; the Arc-side `ERC4626Adapter` is real.
 - `setGate` / `setTreasury` / `setFeeRecipient` are one-time, first-caller-wins wiring with **no
   ownership check**. The live instance is already wired, but any fresh deployment
-  must be wired in the same transaction batch or an attacker can claim the gate —
+  must be wired in the same transaction batch or an attacker can claim the gate -
   which is privileged (`withdrawFromStreamFor`). Production needs an owner,
   timelocks, and pausability.
 - Withdrawals and salary advances do **not** clear an active marketplace listing
@@ -528,7 +529,7 @@ This is **hackathon software** - unaudited, and not production-ready:
   the same amount as a claimable shortfall, and nothing prevents `employer ==
   recipient`. A production build needs that guard plus a funded, underwritten pool.
 - The relayer is permissionless by design (it only delivers Circle-attested
-  messages) but it is a single hosted process — if it is down, cross-chain
+  messages) but it is a single hosted process; if it is down, cross-chain
   transfers are attested and queue until it returns (nothing is lost; deliveries
   to unfunded chains HOLD rather than fail). Production would run redundant
   relayers with a dedicated low-privilege gas key rather than the deployer key.
