@@ -531,7 +531,7 @@ export function Landing() {
             <span className="h-1 w-1 rounded-full bg-cyan-400" />
             Streaming payroll · Arc L1
           </div>
-          <h1 className="text-[3.25rem] font-semibold leading-[1.02] text-zinc-50">
+          <h1 className="font-display text-[3.25rem] font-semibold leading-[1.05] tracking-tight text-zinc-50">
             Payroll that{" "}
             <span className="relative whitespace-nowrap text-cyan-300">
               flows
